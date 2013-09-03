@@ -66,7 +66,12 @@ struct devalarm {
 
 static struct devalarm alarms[ANDROID_ALARM_TYPE_COUNT];
 
-
+/**
+ * is_wakeup() - Checks to see if this alarm can wake the device
+ * @type:	 The type of alarm being checked
+ *
+ * Return: 1 if this is a wakeup alarm, otherwise 0
+ */
 static int is_wakeup(enum android_alarm_type type)
 {
 	return (type == ANDROID_ALARM_RTC_WAKEUP ||
