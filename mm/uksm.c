@@ -508,10 +508,10 @@ static unsigned long uksm_pages_unshared;
  */
 static unsigned int uksm_sleep_jiffies;
 
-/* Max percentage of cpu utilization ksmd can take to scan in one batch */
+/* Base CPU limit that ratios are scaled against */
 static unsigned int uksm_max_cpu_percentage;
 
-static int uksm_cpu_governor;
+static int uksm_cpu_governor = 1;
 
 static char *uksm_cpu_governor_str[4] = { "full", "medium", "low", "quiet" };
 
@@ -521,11 +521,19 @@ struct uksm_cpu_preset_s {
 	unsigned int max_cpu; /* percentage */
 };
 
+/* This table works substantially differently from stock UKSM; its contents are
+ * suitably different.
+ * - Ratios: upper rungs' expected CPU usage carries over into lower rungs;
+ *   rich areas get full scan speed at the expense of poor areas.  Very low
+ *   (<1%) CPU ratios work as expected.
+ * - Cover times: these times are used when pages are added to a rung; the scan
+ *   rate won't scale down as fewer pages are left to scan.
+ */
 struct uksm_cpu_preset_s uksm_cpu_preset[4] = {
-	{ {-1000, -2500, -3500, -10000}, {1000, 500, 200, 50}, 30},
-	{ {-1000, -1500, -2500, -10000}, {2000, 1000, 500, 250}, 20},
-	{ {-500, -1000, -2500, -10000}, {3500, 2500, 1000, 500}, 10},
-	{ {-500, -1000, -2000, -5000}, {5000, 4000, 2500, 1500}, 1},
+	{ {-2500, -5000, -7500, -10000}, {90000, 500, 200, 100}, 75},
+	{ {-2000, -4000, -6500, -10000}, {120000, 1000, 500, 250}, 50},
+	{ {-1000, -1000, -2500, -10000}, {180000, 2500, 1000, 500}, 25},
+	{ {-500, -1000, -2500, -5000}, {300000, 4000, 2500, 1500}, 5},
 };
 
 /* The default value for uksm_ema_page_time if it's not initialized */
@@ -534,11 +542,11 @@ struct uksm_cpu_preset_s uksm_cpu_preset[4] = {
 /*cost to scan one page by expotional moving average in nsecs */
 static unsigned long uksm_ema_page_time = UKSM_PAGE_TIME_DEFAULT;
 
-/* nsecs of wall time used to scan each page in most recent scan */
-static unsigned long uksm_last_run_time = 0;
+/* moving average of wall time required to scan each page */
+static unsigned long uksm_page_wall_time = UKSM_PAGE_TIME_DEFAULT;
 
 /* The expotional moving average alpha weight, in percentage. */
-#define EMA_ALPHA	10
+#define EMA_ALPHA	20
 
 /*
  * The threshold used to filter out thrashing areas,
@@ -3345,8 +3353,7 @@ static inline unsigned long rung_get_pages(struct scan_rung *rung)
 #define RUNG_SAMPLED_MIN	3
 
 static inline
-void uksm_calc_rung_step(struct scan_rung *rung,
-			 unsigned long page_time, unsigned long ratio)
+void uksm_calc_rung_step(struct scan_rung *rung, unsigned long page_time)
 {
 	unsigned long sampled, pages;
 
@@ -3393,7 +3400,7 @@ void reset_current_scan(struct scan_rung *rung, int finished, int step_recalc)
 		rung->flags |= UKSM_RUNG_ROUND_FINISHED;
 
 	if (step_recalc || step_need_recalc(rung)) {
-		uksm_calc_rung_step(rung, uksm_ema_page_time, rung->cpu_ratio);
+		uksm_calc_rung_step(rung, uksm_ema_page_time);
 		BUG_ON(step_need_recalc(rung));
 	}
 
@@ -3449,7 +3456,7 @@ static inline void rung_rm_slot(struct vma_slot *slot)
 	sradix_tree_delete_from_leaf(root, slot->snode, slot->sindex);
 	slot->snode = NULL;
 	if (step_need_recalc(rung)) {
-		uksm_calc_rung_step(rung, uksm_ema_page_time, rung->cpu_ratio);
+		uksm_calc_rung_step(rung, uksm_ema_page_time);
 		BUG_ON(step_need_recalc(rung));
 	}
 
@@ -4129,7 +4136,7 @@ out:
 }
 
 
-#define SPIN_LOCK_PERIOD	32
+#define SPIN_LOCK_PERIOD	64
 static struct vma_slot *cleanup_slots[SPIN_LOCK_PERIOD];
 static inline void cleanup_vma_slots(void)
 {
@@ -4148,6 +4155,7 @@ static inline void cleanup_vma_slots(void)
 			while (--i >= 0)
 				uksm_del_vma_slot(cleanup_slots[i]);
 			i = 0;
+			cond_resched();
 			spin_lock(&vma_slot_list_lock);
 		}
 	}
@@ -4176,30 +4184,40 @@ static inline unsigned long ema(unsigned long curr, unsigned long last_ema)
 	return (EMA_ALPHA * curr + (100 - EMA_ALPHA) * last_ema) / 100;
 }
 
-static inline unsigned long rung_real_ratio(int cpu_time_ratio)
+/* To better handle low usage, return a divisor instead of a multiplier.
+ * RATIO_SCALE shouldn't be much bigger than ema_page_time or cpulim may overflow.
+ */
+#define RATIO_SCALE (1 << 8)
+#define RATIO_SCALE_MAX (1 << 16)
+static inline unsigned int rung_cpu_divisor(int cpu_time_ratio)
 {
-	unsigned long ret;
+	unsigned long ret = RATIO_SCALE;
 
-	BUG_ON(!cpu_time_ratio);
+	if (cpu_time_ratio < 0) {
+		ret = (ret * TIME_RATIO_SCALE) / (-cpu_time_ratio);
+		ret = (ret * 100) / uksm_max_cpu_percentage;
+		if (ret > RATIO_SCALE_MAX)
+			ret = RATIO_SCALE_MAX;
+	} else if (likely(cpu_time_ratio > 0)) {
+		ret *= 100;
+		ret /= cpu_time_ratio;
+	}
 
-	if (cpu_time_ratio > 0)
-		ret = cpu_time_ratio;
-	else
-		ret = (unsigned long)(-cpu_time_ratio) *
-			uksm_max_cpu_percentage / TIME_RATIO_SCALE;
+	if (unlikely(ret < RATIO_SCALE))
+		ret = RATIO_SCALE;
 
-	return ret ? ret : 1;
+	return (unsigned int) ret;
 }
 static noinline void uksm_calc_scan_pages(void)
 {
 	struct scan_rung *ladder = uksm_scan_ladder;
-	unsigned long cpulim, ratio, pagecnt;
+	unsigned long cpulim, pagecnt;
 	unsigned long total, backoff;
 	int i;
 
 	total = 0;
 
-	backoff = uksm_last_run_time << 10;
+	backoff = uksm_page_wall_time << 10;
 	do_div(backoff, uksm_ema_page_time);
 
 	backoff = (backoff * backoff) >> 11;
@@ -4209,40 +4227,44 @@ static noinline void uksm_calc_scan_pages(void)
 		backoff = 4096;
 
 	for (i = SCAN_LADDER_SIZE - 1; i >= 0; i--) {
-		ratio = rung_real_ratio(ladder[i].cpu_ratio);
-		cpulim = ratio *
-			jiffies_to_usecs(uksm_sleep_jiffies);
-		cpulim = cpulim / backoff * 1024;
-		cpulim = cpulim / uksm_ema_page_time * NSEC_PER_USEC;
-		if (unlikely(cpulim < 50))
-			cpulim = 50;
+		cpulim = jiffies_to_usecs(uksm_sleep_jiffies) << 10;
+		cpulim = cpulim / backoff * NSEC_PER_USEC;
+		cpulim = cpulim / uksm_ema_page_time * RATIO_SCALE /
+			rung_cpu_divisor(ladder[i].cpu_ratio);
+
+		// We still need to scan a few pages every round
+		if (unlikely(cpulim < 100))
+			cpulim = 100;
+
 		pagecnt = rung_get_pages(&ladder[i]) *
-			jiffies_to_usecs(uksm_sleep_jiffies) /
-			(ladder[i].cover_msecs * USEC_PER_MSEC);
+			jiffies_to_msecs(uksm_sleep_jiffies) /
+			ladder[i].cover_msecs;
+
 		// Don't reduce scan rate as scanning progresses...
-		if (pagecnt < ladder[i].saved_pages_to_scan) {
+		if (pagecnt < ladder[i].saved_pages_to_scan)
 			pagecnt = ladder[i].saved_pages_to_scan;
-			// ...until waiting pages are exhausted...
-			if (pagecnt > rung_get_pages(&ladder[i]))
-				pagecnt = rung_get_pages(&ladder[i]);
+		else
+			ladder[i].saved_pages_to_scan = pagecnt;
+
+		// ...until waiting pages are exhausted...
+		if (pagecnt > rung_get_pages(&ladder[i])) {
+			pagecnt = rung_get_pages(&ladder[i]);
+			ladder[i].saved_pages_to_scan = 0;
+			printk(KERN_DEBUG "%s: reset saved pages_to_scan for rung %i\n",
+				__func__, i);
 		}
+
 		// ...or CPU usage is a concern.
 		if (pagecnt + total > cpulim) {
 			if (total >= cpulim)
 				return;
 			pagecnt = cpulim - total;
 		}
+
 		if (pagecnt) {
 			total += pagecnt;
 			ladder[i].pages_to_scan = pagecnt;
-			/* Allow a gradual backoff; as pages are redistributed
-			 * to higher rungs, the lower rungs won't need to scan
-			 * as quickly.
-			 */
-			ladder[i].saved_pages_to_scan = pagecnt - (pagecnt >> 7);
-			if (ladder[i].saved_pages_to_scan < pagecnt)
-				ladder[i].saved_pages_to_scan = pagecnt;
-			uksm_calc_rung_step(&ladder[i], uksm_ema_page_time, ratio);
+			uksm_calc_rung_step(&ladder[i], uksm_ema_page_time);
 		}
 	}
 }
@@ -4514,6 +4536,7 @@ rm_slot:
 		if (mmsem_batch) {
 			up_read(&slot->vma->vm_mm->mmap_sem);
 			mmsem_batch = 0;
+			cond_resched();
 		}
 
 		if (unlikely(freezing(current)))
@@ -4568,13 +4591,11 @@ rm_slot:
 
 	if (vpages && delta_exec > 0) {
 		pcost = (unsigned long) delta_exec / vpages;
-		if (likely(uksm_ema_page_time))
-			uksm_ema_page_time = ema(pcost, uksm_ema_page_time);
-		else
-			uksm_ema_page_time = pcost;
-		uksm_last_run_time = ktime_to_ns(ktime_sub(
-			end_wall, start_wall));
-		do_div(uksm_last_run_time, vpages);
+		uksm_ema_page_time = ema(pcost, uksm_ema_page_time);
+
+		pcost = (unsigned long) ktime_to_ns(
+			ktime_sub(end_wall, start_wall)) / vpages;
+		uksm_page_wall_time = ema(pcost, uksm_page_wall_time);
 	}
 
 	uksm_calc_scan_pages();
@@ -5108,9 +5129,10 @@ static ssize_t cpu_ratios_store(struct kobject *kobj,
 	int i, cpuratios[SCAN_LADDER_SIZE], err;
 	unsigned long value;
 	struct scan_rung *rung;
-	char *p, *end = NULL;
+	char *b, *p, *end = NULL;
+	ssize_t ret = count;
 
-	p = kzalloc(count, GFP_KERNEL);
+	b = p = kzalloc(count, GFP_KERNEL);
 	if (!p)
 		return -ENOMEM;
 
@@ -5119,8 +5141,10 @@ static ssize_t cpu_ratios_store(struct kobject *kobj,
 	for (i = 0; i < SCAN_LADDER_SIZE; i++) {
 		if (i != SCAN_LADDER_SIZE -1) {
 			end = strchr(p, ' ');
-			if (!end)
-				return -EINVAL;
+			if (!end) {
+				ret = -EINVAL;
+				goto out;
+			}
 
 			*end = '\0';
 		}
@@ -5128,14 +5152,18 @@ static ssize_t cpu_ratios_store(struct kobject *kobj,
 		if (strstr(p, "MAX/")) {
 			p = strchr(p, '/') + 1;
 			err = strict_strtoul(p, 10, &value);
-			if (err || value > TIME_RATIO_SCALE || !value)
-				return -EINVAL;
+			if (err || value > TIME_RATIO_SCALE || !value) {
+				ret =  -EINVAL;
+				goto out;
+			}
 
 			cpuratios[i] = - (int) (TIME_RATIO_SCALE / value);
 		} else {
 			err = strict_strtoul(p, 10, &value);
-			if (err || value > TIME_RATIO_SCALE || !value)
-				return -EINVAL;
+			if (err || value > TIME_RATIO_SCALE || !value) {
+				ret = -EINVAL;
+				goto out;
+			}
 
 			cpuratios[i] = value;
 		}
@@ -5149,9 +5177,72 @@ static ssize_t cpu_ratios_store(struct kobject *kobj,
 		rung->cpu_ratio = cpuratios[i];
 	}
 
-	return count;
+out:
+	kfree(b);
+	return ret;
 }
 UKSM_ATTR(cpu_ratios);
+
+static ssize_t cpu_scales_show(struct kobject *kobj,
+			       struct kobj_attribute *attr, char *buf)
+{
+	int i, size;
+	struct scan_rung *rung;
+	char *p = buf;
+
+	for (i = 0; i < SCAN_LADDER_SIZE; i++) {
+		rung = &uksm_scan_ladder[i];
+
+		if (rung->cpu_ratio > 0)
+			size = sprintf(p, "%d ", rung->cpu_ratio);
+		else if (rung->cpu_ratio < 0)
+			size = sprintf(p, "%d%% ",
+				-rung->cpu_ratio / (TIME_RATIO_SCALE / 100));
+		else
+			continue;
+
+		p += size;
+	}
+
+	*--p = '\n';
+
+	return p - buf;
+}
+
+static ssize_t cpu_scales_store(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      const char *buf, size_t count)
+{
+	int i, n = 0, cpuratios[SCAN_LADDER_SIZE];
+
+        for (i = 0; i < SCAN_LADDER_SIZE; i++) {
+                if (sscanf(buf, "%u%n", &cpuratios[i], &n)) {
+                        if (cpuratios[i] > 100 || cpuratios[i] == 0)
+                                return -EINVAL;
+
+                        if (buf[n] == '%') {
+                                n++;
+                                cpuratios[i] = -cpuratios[i] *
+                                        (TIME_RATIO_SCALE / 100);
+                        }
+
+                        buf += n;
+                } else {
+                        return -EINVAL;
+                }
+
+                // seek for the next ptr since strcmp doesn't do whitespace
+                if (*buf != ' ' && i != SCAN_LADDER_SIZE - 1)
+                        return -EINVAL;
+                while (*buf == ' ') buf++;
+        }
+
+	for (i = 0; i < SCAN_LADDER_SIZE; i++)
+		uksm_scan_ladder[i].cpu_ratio = cpuratios[i];
+
+	return count;
+}
+UKSM_ATTR(cpu_scales);
 
 static ssize_t eval_intervals_show(struct kobject *kobj,
 			       struct kobj_attribute *attr, char *buf)
@@ -5179,9 +5270,10 @@ static ssize_t eval_intervals_store(struct kobject *kobj,
 	int i, err;
 	unsigned long values[SCAN_LADDER_SIZE];
 	struct scan_rung *rung;
-	char *p, *end = NULL;
+	char *b, *p, *end = NULL;
+	ssize_t ret = count;
 
-	p = kzalloc(count, GFP_KERNEL);
+	b = p = kzalloc(count, GFP_KERNEL);
 	if (!p)
 		return -ENOMEM;
 
@@ -5190,15 +5282,19 @@ static ssize_t eval_intervals_store(struct kobject *kobj,
 	for (i = 0; i < SCAN_LADDER_SIZE; i++) {
 		if (i != SCAN_LADDER_SIZE -1) {
 			end = strchr(p, ' ');
-			if (!end)
-				return -EINVAL;
+			if (!end) {
+				ret = -EINVAL;
+				goto out;
+			}
 
 			*end = '\0';
 		}
 
 		err = strict_strtoul(p, 10, &values[i]);
-		if (err)
-			return -EINVAL;
+		if (err) {
+			ret = -EINVAL;
+			goto out;
+		}
 
 		p = end + 1;
 	}
@@ -5207,9 +5303,12 @@ static ssize_t eval_intervals_store(struct kobject *kobj,
 		rung = &uksm_scan_ladder[i];
 
 		rung->cover_msecs = values[i];
+		rung->saved_pages_to_scan = 0;
 	}
 
-	return count;
+out:
+	kfree(b);
+	return ret;
 }
 UKSM_ATTR(eval_intervals);
 
@@ -5311,6 +5410,7 @@ static struct attribute *uksm_attrs[] = {
 	&thrash_threshold_attr.attr,
 	&abundant_threshold_attr.attr,
 	&cpu_ratios_attr.attr,
+	&cpu_scales_attr.attr,
 	&eval_intervals_attr.attr,
 	NULL,
 };
