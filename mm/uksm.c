@@ -525,28 +525,25 @@ struct uksm_cpu_preset_s {
  * suitably different.
  * - Ratios: upper rungs' expected CPU usage carries over into lower rungs;
  *   rich areas get full scan speed at the expense of poor areas.  Very low
- *   (<1%) CPU ratios work as expected.
+ *   (<1%) calculated CPU ratios work as expected.
  * - Cover times: these times are used when pages are added to a rung; the scan
  *   rate won't scale down as fewer pages are left to scan.
  */
 struct uksm_cpu_preset_s uksm_cpu_preset[4] = {
-	{ {-2500, -5000, -7500, -10000}, {90000, 500, 200, 100}, 75},
-	{ {-2000, -4000, -6500, -10000}, {120000, 1000, 500, 250}, 50},
-	{ {-1000, -1000, -2500, -10000}, {180000, 2500, 1000, 500}, 25},
-	{ {-500, -1000, -2500, -5000}, {300000, 4000, 2500, 1500}, 5},
+	{ {-5000, -7500, -9000, -10000}, {90000, 500, 200, 100}, 75},
+	{ {-5000, -6000, -7500, -10000}, {120000, 1000, 500, 250}, 20},
+	{ {-4000, -5000, -7500, -10000}, {180000, 2500, 1000, 500}, 15},
+	{ {-2500, -3500, -5000, -10000}, {300000, 4000, 2500, 1500}, 5},
 };
 
-/* The default value for uksm_ema_page_time if it's not initialized */
-#define UKSM_PAGE_TIME_DEFAULT	5000
-
-/*cost to scan one page by expotional moving average in nsecs */
-static unsigned long uksm_ema_page_time = UKSM_PAGE_TIME_DEFAULT;
-
-/* moving average of wall time required to scan each page */
-static unsigned long uksm_page_wall_time = UKSM_PAGE_TIME_DEFAULT;
-
-/* The expotional moving average alpha weight, in percentage. */
-#define EMA_ALPHA	20
+/* Time per page can vary widely; ema seems to respond much better to the
+ * bounded range offered by pages per usec.
+ */
+#define UKSM_PAGE_COUNT_DEFAULT	250
+/* Based on task runtime */
+static unsigned long uksm_ema_task_pages = UKSM_PAGE_COUNT_DEFAULT;
+/* Based on wall time */
+static unsigned long uksm_ema_wall_pages = UKSM_PAGE_COUNT_DEFAULT;
 
 /*
  * The threshold used to filter out thrashing areas,
@@ -3353,7 +3350,7 @@ static inline unsigned long rung_get_pages(struct scan_rung *rung)
 #define RUNG_SAMPLED_MIN	3
 
 static inline
-void uksm_calc_rung_step(struct scan_rung *rung, unsigned long page_time)
+void uksm_calc_rung_step(struct scan_rung *rung)
 {
 	unsigned long sampled, pages;
 
@@ -3400,7 +3397,7 @@ void reset_current_scan(struct scan_rung *rung, int finished, int step_recalc)
 		rung->flags |= UKSM_RUNG_ROUND_FINISHED;
 
 	if (step_recalc || step_need_recalc(rung)) {
-		uksm_calc_rung_step(rung, uksm_ema_page_time);
+		uksm_calc_rung_step(rung);
 		BUG_ON(step_need_recalc(rung));
 	}
 
@@ -3456,7 +3453,7 @@ static inline void rung_rm_slot(struct vma_slot *slot)
 	sradix_tree_delete_from_leaf(root, slot->snode, slot->sindex);
 	slot->snode = NULL;
 	if (step_need_recalc(rung)) {
-		uksm_calc_rung_step(rung, uksm_ema_page_time);
+		uksm_calc_rung_step(rung);
 		BUG_ON(step_need_recalc(rung));
 	}
 
@@ -4165,27 +4162,11 @@ static inline void cleanup_vma_slots(void)
 		uksm_del_vma_slot(cleanup_slots[i]);
 }
 
-/*
-*expotional moving average formula
-*/
-static inline unsigned long ema(unsigned long curr, unsigned long last_ema)
-{
-	/*
-	 * For a very high burst, even the ema cannot work well, a false very
-	 * high per-page time estimation can result in feedback in very high
-	 * overhead of context swith and rung update -- this will then lead
-	 * to higher per-paper time, this may not converge.
-	 *
-	 * Instead, we try to approach this value in a binary manner.
-	 */
-	if (curr > last_ema * 10)
-		return last_ema * 2;
-
-	return (EMA_ALPHA * curr + (100 - EMA_ALPHA) * last_ema) / 100;
-}
+#define ema(cur, old, weight) \
+	((weight * cur + (100 - weight) * old) / 100)
 
 /* To better handle low usage, return a divisor instead of a multiplier.
- * RATIO_SCALE shouldn't be much bigger than ema_page_time or cpulim may overflow.
+ * RATIO_SCALE shouldn't be much bigger than ema_page_pages or cpulim may overflow.
  */
 #define RATIO_SCALE (1 << 8)
 #define RATIO_SCALE_MAX (1 << 16)
@@ -4208,7 +4189,7 @@ static inline unsigned int rung_cpu_divisor(int cpu_time_ratio)
 
 	return (unsigned int) ret;
 }
-static noinline void uksm_calc_scan_pages(void)
+static void uksm_calc_scan_pages(void)
 {
 	struct scan_rung *ladder = uksm_scan_ladder;
 	unsigned long cpulim, pagecnt;
@@ -4217,8 +4198,8 @@ static noinline void uksm_calc_scan_pages(void)
 
 	total = 0;
 
-	backoff = uksm_page_wall_time << 10;
-	do_div(backoff, uksm_ema_page_time);
+	backoff = uksm_ema_wall_pages << 10;
+	do_div(backoff, uksm_ema_task_pages);
 
 	backoff = (backoff * backoff) >> 11;
 	if (backoff < 1024)
@@ -4227,9 +4208,9 @@ static noinline void uksm_calc_scan_pages(void)
 		backoff = 4096;
 
 	for (i = SCAN_LADDER_SIZE - 1; i >= 0; i--) {
-		cpulim = jiffies_to_usecs(uksm_sleep_jiffies) << 10;
-		cpulim = cpulim / backoff * NSEC_PER_USEC;
-		cpulim = cpulim / uksm_ema_page_time * RATIO_SCALE /
+		cpulim = jiffies_to_usecs(uksm_sleep_jiffies);
+		cpulim = cpulim * uksm_ema_task_pages / backoff;
+		cpulim = cpulim * RATIO_SCALE /
 			rung_cpu_divisor(ladder[i].cpu_ratio);
 
 		// We still need to scan a few pages every round
@@ -4250,8 +4231,6 @@ static noinline void uksm_calc_scan_pages(void)
 		if (pagecnt > rung_get_pages(&ladder[i])) {
 			pagecnt = rung_get_pages(&ladder[i]);
 			ladder[i].saved_pages_to_scan = 0;
-			printk(KERN_DEBUG "%s: reset saved pages_to_scan for rung %i\n",
-				__func__, i);
 		}
 
 		// ...or CPU usage is a concern.
@@ -4264,7 +4243,7 @@ static noinline void uksm_calc_scan_pages(void)
 		if (pagecnt) {
 			total += pagecnt;
 			ladder[i].pages_to_scan = pagecnt;
-			uksm_calc_rung_step(&ladder[i], uksm_ema_page_time);
+			uksm_calc_rung_step(&ladder[i]);
 		}
 	}
 }
@@ -4425,10 +4404,8 @@ static noinline void uksm_do_scan(void)
 	struct vma_slot *slot, *iter;
 	struct mm_struct *busy_mm;
 	int i, err, mmsem_batch;
-	unsigned long pcost;
 	unsigned long vpages;
 	unsigned long long start_time, end_time;
-	long long delta_exec;
 	ktime_t start_wall, end_wall;
 	unsigned char round_finished, all_rungs_emtpy;
 
@@ -4544,7 +4521,6 @@ rm_slot:
 	}
 	end_time = task_sched_runtime(current);
 	end_wall = ktime_get();
-	delta_exec = end_time - start_time;
 
 	cleanup_vma_slots();
 	uksm_enter_all_slots();
@@ -4589,13 +4565,21 @@ rm_slot:
 	}
 
 
-	if (vpages && delta_exec > 0) {
-		pcost = (unsigned long) delta_exec / vpages;
-		uksm_ema_page_time = ema(pcost, uksm_ema_page_time);
+	if (likely(vpages)) {
+		long long delta_exec;
+		unsigned long cost;
 
-		pcost = (unsigned long) ktime_to_ns(
-			ktime_sub(end_wall, start_wall)) / vpages;
-		uksm_page_wall_time = ema(pcost, uksm_page_wall_time);
+		delta_exec = end_time - start_time;
+		if (likely(delta_exec)) {
+			cost = (vpages * 1000) / ((unsigned long)delta_exec / 1000);
+			uksm_ema_task_pages = ema(cost, uksm_ema_task_pages, 15);
+		}
+
+		delta_exec = ktime_to_us(ktime_sub(end_wall, start_wall));
+		if (likely(delta_exec)) {
+			cost = (vpages * 1000) / ((unsigned long)delta_exec);
+			uksm_ema_wall_pages = ema(cost, uksm_ema_wall_pages, 25);
+		}
 	}
 
 	uksm_calc_scan_pages();
@@ -5315,7 +5299,7 @@ UKSM_ATTR(eval_intervals);
 static ssize_t ema_per_page_time_show(struct kobject *kobj,
 				 struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%lu\n", uksm_ema_page_time);
+	return sprintf(buf, "%lu\n", 1000000 / uksm_ema_task_pages);
 }
 UKSM_ATTR_RO(ema_per_page_time);
 
