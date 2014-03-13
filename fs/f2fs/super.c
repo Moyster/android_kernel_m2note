@@ -244,6 +244,49 @@ static int f2fs_show_options(struct seq_file *seq, struct dentry *root)
 	return 0;
 }
 
+static int segment_info_open_fs(struct inode *inode, struct file *file)
+{
+	return single_open(file, segment_info_seq_show, PDE_DATA(inode));
+}
+
+static const struct file_operations f2fs_seq_segment_info_fops = {
+	.owner = THIS_MODULE,
+	.open = segment_info_open_fs,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int f2fs_remount(struct super_block *sb, int *flags, char *data)
+{
+	struct f2fs_sb_info *sbi = F2FS_SB(sb);
+	struct f2fs_mount_info org_mount_opt;
+	int err, active_logs;
+
+	sync_filesystem(sb);
+
+	/*
+	 * Save the old mount options in case we
+	 * need to restore them.
+	 */
+	org_mount_opt = sbi->mount_opt;
+	active_logs = sbi->active_logs;
+
+	/* parse mount options */
+	err = parse_options(sb, data);
+	if (err)
+		goto restore_opts;
+
+	/*
+	 * Previous and new state of filesystem is RO,
+	 * so no point in checking GC conditions.
+	 */
+	if ((sb->s_flags & MS_RDONLY) && (*flags & MS_RDONLY))
+		goto skip;
+
+	return 0;
+}
+
 static struct super_operations f2fs_sops = {
 	.alloc_inode	= f2fs_alloc_inode,
 	.drop_inode	= f2fs_drop_inode,
