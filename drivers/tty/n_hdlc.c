@@ -836,12 +836,10 @@ static struct n_hdlc *n_hdlc_alloc(void)
 {
 	struct n_hdlc_buf *buf;
 	int i;
-	struct n_hdlc *n_hdlc = kmalloc(sizeof(*n_hdlc), GFP_KERNEL);
+	struct n_hdlc *n_hdlc = kzalloc(sizeof(*n_hdlc), GFP_KERNEL);
 
 	if (!n_hdlc)
 		return NULL;
-
-	memset(n_hdlc, 0, sizeof(*n_hdlc));
 
 	spin_lock_init(&n_hdlc->rx_free_buf_list.spinlock);
 	spin_lock_init(&n_hdlc->tx_free_buf_list.spinlock);
