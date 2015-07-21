@@ -291,6 +291,119 @@ static void arp_error_report(struct neighbour *neigh, struct sk_buff *skb)
 	kfree_skb(skb);
 }
 
+/*
+ * @dev - net device
+ * @arp - arp header
+ * @count - 0: Recevied ARP, 1: Sending ARP
+ */
+static void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
+{
+	unsigned char *arp_ptr;
+	unsigned char *ha; // Hardware Address
+	unsigned char ip_tmp[4];
+	unsigned long cur_ms_time;
+	int i;
+
+	cur_ms_time = jiffies_to_usecs(jiffies - init_time);
+	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %lu.%6lus) =======\n", __func__,
+					cur_ms_time / 1000000, cur_ms_time % 1000000);
+
+	/* net_device info */
+	if (count)
+		printk(ARP_PROJECT"%s - Sending dev_addr: ", __func__);
+	else
+		printk(ARP_PROJECT"%s - Received dev_addr: ", __func__);
+	for(i = 0; i < dev->addr_len - 1; i++)
+		printk("%02x:", dev->dev_addr[i]);
+	printk("%02x\n", dev->dev_addr[i]);
+
+	/* operation info */
+	if (arp->ar_op == htons(ARPOP_REQUEST))
+		printk(ARP_PROJECT"%s - Operation: Request(1)\n", __func__);
+	else if (arp->ar_op == htons(ARPOP_REPLY))
+		printk(ARP_PROJECT"%s - Operation: Reply(2)\n", __func__);
+
+	/* Get arp_ptr infos */
+	arp_ptr = (unsigned char *)(arp + 1);
+
+	/* Sender Hardware Address info */
+	ha = arp_ptr; // First of the ARP data - Sender HW address
+	printk(ARP_PROJECT"%s - Sender HW: ", __func__);
+	for(i = 0; i < dev->addr_len - 1; i++)
+		printk("%02x:", ha[i]);
+	printk("%02x\n", ha[i]);
+
+	/* Move pointer */
+	arp_ptr += dev->addr_len;
+
+	/* Sender IP Address info */
+	memcpy(&ip_tmp, arp_ptr, 4);
+	printk(ARP_PROJECT"%s - Sender IP: ", __func__);
+	for (i = 0; i < 3; i++)
+		printk("%d.", ip_tmp[i]);
+	printk("%d\n", ip_tmp[i]);
+
+	/* Move pointer */
+	arp_ptr += 4;
+
+	/* Target Hardware Address info */
+	ha = arp_ptr;
+	printk(ARP_PROJECT"%s - Target HW: ", __func__);
+	for(i = 0; i < dev->addr_len - 1; i++)
+		printk("%02x:", ha[i]);
+	printk("%02x\n", ha[i]);
+
+	/* Move pointer */
+	arp_ptr += dev->addr_len;
+
+	/* Target IP Address info */
+	memcpy(&ip_tmp, arp_ptr, 4);
+	printk(ARP_PROJECT"%s - Target IP: ", __func__);
+	for (i = 0; i < 3; i++)
+		printk("%d.", ip_tmp[i]);
+	printk("%d\n", ip_tmp[i]);
+}
+
+/* Create and send an arp packet. */
+static void arp_send_dst(int type, int ptype, __be32 dest_ip,
+			 struct net_device *dev, __be32 src_ip,
+			 const unsigned char *dest_hw,
+			 const unsigned char *src_hw,
+			 const unsigned char *target_hw, struct sk_buff *oskb)
+{
+	struct sk_buff *skb;
+
+	/* arp on this interface. */
+	if (dev->flags & IFF_NOARP)
+		return;
+	#ifdef CONFIG_MTK_NET_LOGGING  	
+    printk(KERN_INFO "[mtk_net][arp]arp_send type = %d, dev = %s\n", type, dev->name);
+    #endif
+	skb = arp_create(type, ptype, dest_ip, dev, src_ip,
+			 dest_hw, src_hw, target_hw);
+	if (!skb)
+		return;
+
+	/* arp_project - Print arp_ptr infos */
+	if (arp_project_enable && print_arp_info)
+		arp_print_info(dev, arp_hdr(skb), 1);
+
+	if (oskb)
+		skb_dst_copy(skb, oskb);
+
+	arp_xmit(skb);
+}
+
+void arp_send(int type, int ptype, __be32 dest_ip,
+	      struct net_device *dev, __be32 src_ip,
+	      const unsigned char *dest_hw, const unsigned char *src_hw,
+	      const unsigned char *target_hw)
+{
+	arp_send_dst(type, ptype, dest_ip, dev, src_ip, dest_hw, src_hw,
+		     target_hw, NULL);
+}
+EXPORT_SYMBOL(arp_send);
+
 static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 {
 	__be32 saddr = 0;
@@ -346,8 +459,9 @@ static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 		}
 	}
 
-	arp_send(ARPOP_REQUEST, ETH_P_ARP, target, dev, saddr,
-		 dst_hw, dev->dev_addr, NULL);
+	arp_send_dst(ARPOP_REQUEST, ETH_P_ARP, target, dev, saddr,
+		     dst_hw, dev->dev_addr, NULL,
+		     dev->priv_flags & IFF_XMIT_DST_RELEASE ? NULL : skb);
 }
 
 static int arp_ignore(struct in_device *in_dev, __be32 sip, __be32 tip)
@@ -744,111 +858,6 @@ void arp_xmit(struct sk_buff *skb)
 	NF_HOOK(NFPROTO_ARP, NF_ARP_OUT, skb, NULL, skb->dev, dev_queue_xmit);
 }
 EXPORT_SYMBOL(arp_xmit);
-
-/*
- * @dev - net device
- * @arp - arp header
- * @count - 0: Recevied ARP, 1: Sending ARP
- */
-static void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
-{
-	unsigned char *arp_ptr;
-	unsigned char *ha; // Hardware Address
-	unsigned char ip_tmp[4];
-	unsigned long cur_ms_time;
-	int i;
-
-	cur_ms_time = jiffies_to_usecs(jiffies - init_time);
-	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %lu.%6lus) =======\n", __func__,
-					cur_ms_time / 1000000, cur_ms_time % 1000000);
-
-	/* net_device info */
-	if (count)
-		printk(ARP_PROJECT"%s - Sending dev_addr: ", __func__);
-	else
-		printk(ARP_PROJECT"%s - Received dev_addr: ", __func__);
-	for(i = 0; i < dev->addr_len - 1; i++)
-		printk("%02x:", dev->dev_addr[i]);
-	printk("%02x\n", dev->dev_addr[i]);
-
-	/* operation info */
-	if (arp->ar_op == htons(ARPOP_REQUEST))
-		printk(ARP_PROJECT"%s - Operation: Request(1)\n", __func__);
-	else if (arp->ar_op == htons(ARPOP_REPLY))
-		printk(ARP_PROJECT"%s - Operation: Reply(2)\n", __func__);
-
-	/* Get arp_ptr infos */
-	arp_ptr = (unsigned char *)(arp + 1);
-
-	/* Sender Hardware Address info */
-	ha = arp_ptr; // First of the ARP data - Sender HW address
-	printk(ARP_PROJECT"%s - Sender HW: ", __func__);
-	for(i = 0; i < dev->addr_len - 1; i++)
-		printk("%02x:", ha[i]);
-	printk("%02x\n", ha[i]);
-
-	/* Move pointer */
-	arp_ptr += dev->addr_len;
-
-	/* Sender IP Address info */
-	memcpy(&ip_tmp, arp_ptr, 4);
-	printk(ARP_PROJECT"%s - Sender IP: ", __func__);
-	for (i = 0; i < 3; i++)
-		printk("%d.", ip_tmp[i]);
-	printk("%d\n", ip_tmp[i]);
-
-	/* Move pointer */
-	arp_ptr += 4;
-
-	/* Target Hardware Address info */
-	ha = arp_ptr;
-	printk(ARP_PROJECT"%s - Target HW: ", __func__);
-	for(i = 0; i < dev->addr_len - 1; i++)
-		printk("%02x:", ha[i]);
-	printk("%02x\n", ha[i]);
-
-	/* Move pointer */
-	arp_ptr += dev->addr_len;
-
-	/* Target IP Address info */
-	memcpy(&ip_tmp, arp_ptr, 4);
-	printk(ARP_PROJECT"%s - Target IP: ", __func__);
-	for (i = 0; i < 3; i++)
-		printk("%d.", ip_tmp[i]);
-	printk("%d\n", ip_tmp[i]);
-}
-
-/*
- *	Create and send an arp packet.
- */
-void arp_send(int type, int ptype, __be32 dest_ip,
-	      struct net_device *dev, __be32 src_ip,
-	      const unsigned char *dest_hw, const unsigned char *src_hw,
-	      const unsigned char *target_hw)
-{
-	struct sk_buff *skb;
-
-	/*
-	 *	No arp on this interface.
-	 */
-
-	if (dev->flags&IFF_NOARP)
-		return;
-	#ifdef CONFIG_MTK_NET_LOGGING  	
-    printk(KERN_INFO "[mtk_net][arp]arp_send type = %d, dev = %s\n", type, dev->name);
-    #endif
-	skb = arp_create(type, ptype, dest_ip, dev, src_ip,
-			 dest_hw, src_hw, target_hw);
-	if (skb == NULL)
-		return;
-
-	/* arp_project - Print arp_ptr infos */
-	if (arp_project_enable && print_arp_info)
-		arp_print_info(dev, arp_hdr(skb), 1);
-
-	arp_xmit(skb);
-}
-EXPORT_SYMBOL(arp_send);
 
 /*
  *	Process an arp request.
