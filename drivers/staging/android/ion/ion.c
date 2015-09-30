@@ -260,9 +260,8 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 		table = ERR_PTR(-EINVAL);
 	if (IS_ERR(table)) {
                 IONMSG("%s table is err 0x%pK.\n", __func__, table);
-		heap->ops->free(buffer);
-		kfree(buffer);
-		return ERR_PTR(PTR_ERR(table));
+        ret = -EINVAL;
+        goto err1;
 	}
 	buffer->sg_table = table;
 	if (ion_buffer_fault_user_mappings(buffer)) {
@@ -274,7 +273,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 		if (!buffer->pages) {
                         IONMSG("%s vamlloc failed pages is null.\n", __func__);
 			ret = -ENOMEM;
-			goto err1;
+			goto err;
 		}
 
 		for_each_sg(table->sgl, sg, table->nents, i) {
@@ -283,9 +282,6 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 			for (j = 0; j < sg->length / PAGE_SIZE; j++)
 				buffer->pages[k++] = page++;
 		}
-
-		if (ret)
-			goto err;
 	}
 
 	buffer->dev = dev;
@@ -322,10 +318,8 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 
 err:
 	heap->ops->unmap_dma(heap, buffer);
-	heap->ops->free(buffer);
 err1:
-	if (buffer->pages)
-		vfree(buffer->pages);
+    heap->ops->free(buffer);
 err2:
 	kfree(buffer);
 	return ERR_PTR(ret);
