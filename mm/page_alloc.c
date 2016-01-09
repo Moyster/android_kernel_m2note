@@ -7552,6 +7552,9 @@ static const struct trace_print_flags pageflag_names[] = {
 	{1UL << PG_compound_lock,	"compound_lock"	},
 #endif
 	{1UL << PG_readahead,           "PG_readahead"  },
+#ifdef CONFIG_KSM_CHECK_PAGE
+	{1UL << PG_ksm_scan0,           "PG_ksm_scan0"  },
+#endif
 };
 
 static void dump_page_flags(unsigned long flags)
