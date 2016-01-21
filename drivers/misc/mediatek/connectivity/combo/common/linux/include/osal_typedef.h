@@ -8,6 +8,8 @@
 #ifndef _OSAL_TYPEDEF_H_
 #define _OSAL_TYPEDEF_H_
 
+#include <linux/firmware.h>
+
 #ifndef _TYPEDEFS_H	/*fix redifine*/
 typedef char		INT8, *PINT8, **PPINT8;
 #endif

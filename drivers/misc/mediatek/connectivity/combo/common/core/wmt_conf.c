@@ -415,13 +415,7 @@ INT32 wmt_conf_read_file(VOID)
 	osal_memset(&gDevWmt.rWmtGenConf, 0, osal_sizeof(gDevWmt.rWmtGenConf));
 	osal_memset(&gDevWmt.pWmtCfg, 0, osal_sizeof(gDevWmt.pWmtCfg));
 
-#if 0
-	osal_memset(&gDevWmt.cWmtcfgName[0], 0, osal_sizeof(gDevWmt.cWmtcfgName));
-
-	osal_strncat(&(gDevWmt.cWmtcfgName[0]), CUST_CFG_WMT_PREFIX,
-		     osal_sizeof(CUST_CFG_WMT_PREFIX));
-	osal_strncat(&(gDevWmt.cWmtcfgName[0]), CUST_CFG_WMT, osal_sizeof(CUST_CFG_WMT));
-#endif
+	osal_strncpy(&(gDevWmt.cWmtcfgName[0]), CUST_CFG_WMT, osal_sizeof(CUST_CFG_WMT));
 
 	if (!osal_strlen(&(gDevWmt.cWmtcfgName[0]))) {
 		WMT_ERR_FUNC("empty Wmtcfg name\n");
