@@ -728,6 +728,14 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	arp->ar_pln = 4;
 	arp->ar_op = htons(type);
 
+	/*
+
+	arp_project
+
+	 skb_put reserved size of arphdr(ARP header) + 2 MACs + 2 IPs.
+	 But remember the variable *arp 's type is arphdr.
+	 So we can put arp data after (arp + 1) that end of ARP header.
+	*/
 	arp_ptr = (unsigned char *)(arp + 1);	// Next to the ARP Header (arp_hdr)
 
 	memcpy(arp_ptr, src_hw, dev->addr_len);
