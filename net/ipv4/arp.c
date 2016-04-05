@@ -669,7 +669,7 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	case ...IEEE_1394:
 		...
 	default: // (Ethernet is here)
-		return ((sizeof(struct arp_hdr) + dev->addr_len + sizeof(u32)) * 2;
+		return (sizeof(struct arp_hdr) + (dev->addr_len + sizeof(u32)) * 2;
 			// ARP Header + 2 device addresses + 2 IP addresses)
 	*/
 	skb->dev = dev;
