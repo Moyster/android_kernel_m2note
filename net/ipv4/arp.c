@@ -571,6 +571,71 @@ static inline int arp_fwd_pvlan(struct in_device *in_dev,
  *	Create an arp packet. If (dest_hw == NULL), we create a broadcast
  *	message.
  */
+
+/*
+
+ arp_project
+
+ == ARP Header Structure ==
+
+ 0                    7                         15                               31
+ |                    |                         |                                |
+ |-------------------------------------------------------------------------------|<- arp <- skb->data
+ |    <Hardware Type>   (Ethernet = 1)          | <Protocol Type> (IPv4: 0x0800) | |
+ |    arp->ar_hrd = htons(dev->type);           | arp->ar_pro = htons(ETH_P_IP); | |
+ |-------------------------------------------------------------------------------| |
+ | <HW Address Length> | <Protocol Addr Length> | <Operation Code>               | |<- sizeof(struct arp_hdr)
+ | (MAC: 6byte)        | (IPv4 Length: 4byte)   | int type; ---- ARPOP_REQUEST 1 | |
+ | arp->hln =          | arp->ar_pln = 4;       |            |-- ARPOP_REPLY   2 | |
+ |    dev->addr_len;   |                        | arp->ar_op = htons(type);      | |
+ |-------------------------------------------------------------------------------|<- arp + 1 <- arp_ptr
+ | <Sender Hardware Address>  (6byte MAC Address)                                | |
+ | memcpy(arp_ptr, src_hw, dev->addr_len);                                       | |
+ | arp_ptr += dev->addr_len;                                                     | |
+ |                                              |--------------------------------| |
+ |                                              |                                | |
+ |                                              |                                | |
+ |                                              |                                | |
+ |----------------------------------------------|--------------------------------| |
+ | <Sender Protocol Address> (4byte IP Address) |                                | |
+ | memcpy(arp_ptr, &src_ip, 4);                 |                                | |<- (dev->addr_len +
+ | arp_ptr += 4;                                |                                | |     sizeof(u32)) * 2
+ |----------------------------------------------|                                | |
+ | <Target Hardware Address>  (6byte MAC Address)                                | |
+ | if(target_hw != NULL) memcpy(arp_ptr, target_hw, dev->addr_len);              | |
+ | else memcpy(arp_ptr, 0, dev->addr_len);           arp_ptr += dev->addr_len;   | |
+ |-------------------------------------------------------------------------------| |
+ | <Target Protocol Address> (4byte IP Address)                                  | |
+ | memcpy(arp_ptr, &dest_ip, 4);                                                 | |
+ |                                                                               | |
+ |-------------------------------------------------------------------------------|<- skb->tail
+
+
+ == skb Structure ==
+
+ skb->head -->|----------------------------|
+              |            head            |   decrease head: skb_push()
+ skb->data -->|----------------------------|------
+              |                            |   increase head: skb_pull()
+              |            data            |
+              |                            |
+ skb->tail -->|----------------------------|------
+              |            tail            |    increase data: skb_put()
+ skb->end  -->|----------------------------|
+
+
+ @ type       ---- ARPOP_REQUEST 1
+               |-- ARPOP_REPLY   2
+ @ ptype      If Ethernet - ETH_P_ARP
+ @ dest_ip    Destination IP Address
+ @ dev        Network Device
+ @ dest_ip    Destination IP Address
+ @ src_ip     Source IP Address
+ @ dest_hw    Destination HW Address
+ @ src_hw     Source HW Address
+ @ target_hw  Target HW Address   (REPLY - same with dest_hw / REQUEST - NULL)
+*/
+
 struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 			   struct net_device *dev, __be32 src_ip,
 			   const unsigned char *dest_hw,
@@ -580,7 +645,7 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	struct sk_buff *skb;
 	struct arphdr *arp;
 	unsigned char *arp_ptr;
-	int hlen = LL_RESERVED_SPACE(dev);
+	int hlen = LL_RESERVED_SPACE(dev); // dev header + dev header room
 	int tlen = dev->needed_tailroom;
 
 	/*
@@ -591,19 +656,33 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	if (skb == NULL)
 		return NULL;
 
-	skb_reserve(skb, hlen);
+	skb_reserve(skb, hlen);	// reserve skb header (dev header + dev header room)
 	skb_reset_network_header(skb);
-	arp = (struct arphdr *) skb_put(skb, arp_hdr_len(dev));
+	arp = (struct arphdr *) skb_put(skb, arp_hdr_len(dev)); // reserve data space
+	/*
+
+	arp_project
+
+	 == arp_hdr_len(dev) ==
+
+	<linux/if_arp.h>
+	case ...IEEE_1394:
+		...
+	default: // (Ethernet is here)
+		return ((sizeof(struct arp_hdr) + dev->addr_len + sizeof(u32)) * 2;
+			// ARP Header + 2 device addresses + 2 IP addresses)
+	*/
 	skb->dev = dev;
 	skb->protocol = htons(ETH_P_ARP);
 	if (src_hw == NULL)
 		src_hw = dev->dev_addr;
-	if (dest_hw == NULL)
+	if (dest_hw == NULL)	// If REQUEST we should create a broadcast.
 		dest_hw = dev->broadcast;
 
 	/*
 	 *	Fill the device header for the ARP frame
 	 */
+	// If Ethernet, ptype = ETH_P_ARP
 	if (dev_hard_header(skb, dev, ptype, dest_hw, src_hw, skb->len) < 0)
 		goto out;
 
@@ -618,7 +697,7 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	 *	DIX code for the protocol. Make these device structure fields.
 	 */
 	switch (dev->type) {
-	default:
+	default:	// Ethernet is here
 		arp->ar_hrd = htons(dev->type);
 		arp->ar_pro = htons(ETH_P_IP);
 		break;
@@ -649,11 +728,11 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	arp->ar_pln = 4;
 	arp->ar_op = htons(type);
 
-	arp_ptr = (unsigned char *)(arp + 1);
+	arp_ptr = (unsigned char *)(arp + 1);	// Next to the ARP Header (arp_hdr)
 
 	memcpy(arp_ptr, src_hw, dev->addr_len);
 	arp_ptr += dev->addr_len;
-	memcpy(arp_ptr, &src_ip, 4);
+	memcpy(arp_ptr, &src_ip, 4);	// 32bit IP address -> 4byte
 	arp_ptr += 4;
 
 	switch (dev->type) {
