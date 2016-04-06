@@ -60,7 +60,6 @@ do { if (gDbgLevel >= BT_LOG_DBG)	\
 } while (0)
 
 #define VERSION "1.0"
-#define BT_NVRAM_CUSTOM_NAME "/data/BT_Addr"
 
 static INT32 BT_devs = 1;		/* device count */
 static INT32 BT_major = BT_DEV_MAJOR;	/* dynamic allocation */
@@ -76,62 +75,6 @@ static wait_queue_head_t inq;	/* read queues */
 static DECLARE_WAIT_QUEUE_HEAD(BT_wq);
 static INT32 flag = 0;
 static volatile INT32 retflag = 0;
-#if 0
-static unsigned char g_bt_bd_addr[10]={0x01,0x1a,0xfc,0x06,0x00,0x55,0x66,0x77,0x88,0x00};
-#endif
-static UINT8 g_nvram_btdata[8];
-
-static INT32 nvram_read(PINT8 filename, PINT8 buf, ssize_t len, INT32 offset)
-{
-	struct file *fd;
-	/* ssize_t ret; */
-	INT32 retLen = -1;
-
-	mm_segment_t old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	fd = filp_open(filename, O_WRONLY | O_CREAT, 0644);
-
-	if (IS_ERR(fd)) {
-		BT_ERR_FUNC("failed to open!!\n");
-		return -1;
-	}
-	do {
-		if ((fd->f_op == NULL) || (fd->f_op->read == NULL)) {
-			BT_ERR_FUNC("file can not be read!!\n");
-			break;
-		}
-
-		if (fd->f_pos != offset) {
-			if (fd->f_op->llseek) {
-				if (fd->f_op->llseek(fd, offset, 0) != offset) {
-					BT_ERR_FUNC("[nvram_read] : failed to seek!!\n");
-					break;
-				}
-			} else {
-				fd->f_pos = offset;
-			}
-		}
-
-		retLen = fd->f_op->read(fd, buf, len, &fd->f_pos);
-
-	} while (false);
-
-	filp_close(fd, NULL);
-
-	set_fs(old_fs);
-
-	return retLen;
-}
-
-
-INT32 platform_load_nvram_data(PINT8 filename, PINT8 buf, INT32 len)
-{
-	/* int ret; */
-	BT_INFO_FUNC("platform_load_nvram_data ++ BDADDR\n");
-
-	return nvram_read(filename, buf, len, 0);
-}
 
 static VOID bt_cdev_rst_cb(ENUM_WMTDRV_TYPE_T src,
 			   ENUM_WMTDRV_TYPE_T dst,
