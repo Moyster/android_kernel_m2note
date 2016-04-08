@@ -47,7 +47,7 @@
 
 static DEFINE_MUTEX(FGADC_mutex);
 
-int Enable_FGADC_LOG = 1;
+int Enable_FGADC_LOG = 0;
 
 /* ============================================================ // */
 /* global variable */
