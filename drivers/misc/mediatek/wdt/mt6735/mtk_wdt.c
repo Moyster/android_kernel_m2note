@@ -768,8 +768,6 @@ void mtk_wd_suspend(void)
 
 	mtk_wdt_restart(WD_TYPE_NORMAL);
 
-	aee_sram_printk("[WDT] suspend\n");
-	printk("[WDT] suspend\n");
 }
 
 void mtk_wd_resume(void)
@@ -783,8 +781,6 @@ void mtk_wd_resume(void)
 		
 	}
 
-	aee_sram_printk("[WDT] resume(%d)\n", g_wdt_enable);
-	printk("[WDT] resume(%d)\n", g_wdt_enable);
 }
 	
 
