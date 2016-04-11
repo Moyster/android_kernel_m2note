@@ -75,7 +75,8 @@ static struct devalarm alarms[ANDROID_ALARM_TYPE_COUNT];
 static int is_wakeup(enum android_alarm_type type)
 {
 	return type == ANDROID_ALARM_RTC_WAKEUP ||
-		type == ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP;
+		type == ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP ||
+		type == ANDROID_ALARM_POWER_ON;
 }
 
 static void devalarm_start(struct devalarm *alrm, ktime_t exp)
@@ -499,6 +500,8 @@ static int __init alarm_dev_init(void)
 			ALARM_REALTIME, devalarm_alarmhandler);
 	hrtimer_init(&alarms[ANDROID_ALARM_RTC].u.hrt,
 			CLOCK_REALTIME, HRTIMER_MODE_ABS);
+	alarm_init(&alarms[ANDROID_ALARM_POWER_ON].u.alrm,
+			ALARM_REALTIME, devalarm_alarmhandler);
 	alarm_init(&alarms[ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP].u.alrm,
 			ALARM_BOOTTIME, devalarm_alarmhandler);
 	hrtimer_init(&alarms[ANDROID_ALARM_ELAPSED_REALTIME].u.hrt,
