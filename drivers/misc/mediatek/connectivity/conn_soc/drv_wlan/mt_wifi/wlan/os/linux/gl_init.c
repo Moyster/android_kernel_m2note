@@ -709,7 +709,7 @@ MODULE_SUPPORTED_DEVICE(NIC_NAME);
 MODULE_LICENSE("GPL");
 
 #define NIC_INF_NAME    "wlan%d" /* interface name */
-#if CFG_TC1_FEATURE
+#if CFG_TC1_FEATURE || defined(CONFIG_MTK_COMBO_AOSP_TETHERING_SUPPORT)
 #define NIC_INF_NAME_IN_AP_MODE  "legacy%d"
 extern volatile int wlan_if_changed;
 #endif
@@ -2445,7 +2445,7 @@ wlanNetCreate(
 
     //4 <3> Initial Glue structure
     //4 <3.1> Create net device
-#if CFG_TC1_FEATURE
+#if CFG_TC1_FEATURE || defined(CONFIG_MTK_COMBO_AOSP_TETHERING_SUPPORT)
     if (wlan_if_changed) {
         prGlueInfo->prDevHandler = alloc_netdev_mq(sizeof(P_GLUE_INFO_T), NIC_INF_NAME_IN_AP_MODE, ether_setup, CFG_MAX_TXQ_NUM);
     } else {

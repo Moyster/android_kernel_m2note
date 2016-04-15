@@ -62,7 +62,7 @@ UINT32 gDbgLevel = WIFI_LOG_DBG;
 
 
 #define WLAN_IFACE_NAME "wlan0"
-#if CFG_TC1_FEATURE
+#if CFG_TC1_FEATURE || defined(CONFIG_MTK_COMBO_AOSP_TETHERING_SUPPORT)
 #define LEGACY_IFACE_NAME "legacy0"
 #endif
 
@@ -75,7 +75,7 @@ enum {
 static INT32 wlan_mode = WLAN_MODE_HALT;
 static INT32 powered = 0;
 static INT8 *ifname = WLAN_IFACE_NAME;
-#if CFG_TC1_FEATURE
+#if CFG_TC1_FEATURE || defined(CONFIG_MTK_COMBO_AOSP_TETHERING_SUPPORT)
 volatile INT32 wlan_if_changed = 0;
 EXPORT_SYMBOL(wlan_if_changed);
 #endif
@@ -382,7 +382,7 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
                 powered = 0;
                 retval = count;
                 wlan_mode = WLAN_MODE_HALT;
-            #if CFG_TC1_FEATURE
+            #if CFG_TC1_FEATURE || defined(CONFIG_MTK_COMBO_AOSP_TETHERING_SUPPORT)
                 ifname = WLAN_IFACE_NAME;
                 wlan_if_changed = 0;
             #endif
@@ -528,7 +528,7 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
             }
 
             if (local[0] == 'S' || local[0] == 'P'){
-            #if CFG_TC1_FEATURE
+            #if CFG_TC1_FEATURE || defined(CONFIG_MTK_COMBO_AOSP_TETHERING_SUPPORT)
                 /* Restore NIC name to wlan0 */
                 rtnl_lock();
                 if (strcmp(ifname, WLAN_IFACE_NAME) != 0){
@@ -556,7 +556,7 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
                     retval = count;
                 }
             } else if (local[0] == 'A'){
-            #if CFG_TC1_FEATURE
+            #if CFG_TC1_FEATURE || defined(CONFIG_MTK_COMBO_AOSP_TETHERING_SUPPORT)
                 /* Change NIC name to legacy0, since wlan0 is used for AP */
                 rtnl_lock();
                 if (strcmp(ifname, LEGACY_IFACE_NAME) != 0){

@@ -124,3 +124,7 @@ config MTK_COMBO_GPS
 	depends on MTK_COMBO
 	help
 	  MTK GPS /dev/stpgps driver
+
+config MTK_COMBO_AOSP_TETHERING_SUPPORT
+	bool "Multiplex wlan0 for both AP and STA"
+	default n
