@@ -343,6 +343,7 @@ enum fuse_opcode {
 	FUSE_BATCH_FORGET  = 42,
 	FUSE_FALLOCATE     = 43,
 	FUSE_READDIRPLUS   = 44,
+	FUSE_CANONICAL_PATH= 2016,
 
 	FUSE_USERS         = 100,
 
