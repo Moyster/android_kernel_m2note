@@ -946,9 +946,14 @@ static int arp_process(struct sk_buff *skb)
 
 	arp_project
 
+	 This is special case for detect duplicated IP address with DHCP.
+	 DHCP server or DHCP client can send the ARP_REQUEST message with
+	sip 0.0.0.0 and tip to use for that client.
+	 If ARP_REPLY arrived, its IP is duplicated.
+
 	 sip = 0.0.0.0?
 	 Yes -> Is ARP_REQUEST? -> Is tip Local? -> Send ARP_REPLY
-	 No -> Drop packet
+	 No -> Drop the packet
 	*/
 	if (sip == 0) {
 		if (arp->ar_op == htons(ARPOP_REQUEST) &&
