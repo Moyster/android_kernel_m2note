@@ -118,6 +118,12 @@
 
 #include <linux/netfilter_arp.h>
 
+/* arp_project */
+#include <linux/ktime.h>
+#include <linux/hrtimer.h>
+
+#define ARP_PROJECT "arp_project: "
+
 /*
  *	Interface to generic neighbour cache.
  */
@@ -814,12 +820,16 @@ static int arp_process(struct sk_buff *skb)
 	struct arphdr *arp;
 	unsigned char *arp_ptr;
 	struct rtable *rt;
-	unsigned char *sha; // Target HW adress for ARP reply
+	unsigned char *sha; // Sender Hardware Address
+	unsigned char *tha; // Target Hardware Address
 	__be32 sip, tip;
 	u16 dev_type = dev->type;
 	int addr_type;
 	struct neighbour *n;
 	struct net *net = dev_net(dev);
+	int i;
+	unsigned char ip_tmp[4];
+	unsigned int cur_us_time;
 
 	/* arp_rcv below verifies the ARP header and verifies the device
 	 * is ARP'able.
@@ -882,27 +892,70 @@ static int arp_process(struct sk_buff *skb)
  *	Extract fields
  */
 	arp_ptr = (unsigned char *)(arp + 1); // next to the arp header (start of ARP data)
-	sha	= arp_ptr; // First of the ARP data - Sender HW address
+
+	/*
+
+	arp_project
+
+	 Print & Copy ARP informations
+	*/
+	cur_us_time = ktime_to_us(ktime_get_real());
+	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %d.%03d) =======\n", __func__,
+					cur_us_time / 1000, cur_us_time % 1000);
+
+	printk(ARP_PROJECT"%s - Received dev_addr: ", __func__);
+	for(i = 0; i < dev->addr_len - 1; i++)
+		printk("%02x:", dev->dev_addr[i]);
+	printk("%02x\n", dev->dev_addr[i]);
+
+	if (arp->ar_op == htons(ARPOP_REQUEST))
+		printk(ARP_PROJECT"%s - Operation: Request(1)\n", __func__);
+	else if (arp->ar_op == htons(ARPOP_REPLY))
+		printk(ARP_PROJECT"%s - Operation: Reply(2)\n", __func__);
+
+	sha = arp_ptr; // First of the ARP data - Sender HW address
 		  // This is an ARP request. So it will be an ARP reply's target HW address.
+	printk(ARP_PROJECT"%s - Sender HW: ", __func__);
+	for(i = 0; i < dev->addr_len - 1; i++)
+		printk("%02x:", sha[i]);
+	printk("%02x\n", sha[i]);
 	arp_ptr += dev->addr_len;
+
 	memcpy(&sip, arp_ptr, 4); // Get source IP address
+	memcpy(&ip_tmp, arp_ptr, 4);
+	printk(ARP_PROJECT"%s - Sender IP: ", __func__);
+	for (i = 0; i < 3; i++)
+		printk("%d.", ip_tmp[i]);
+	printk("%d\n", ip_tmp[i]);
 	arp_ptr += 4;
+
 	switch (dev_type) {
 #if IS_ENABLED(CONFIG_FIREWIRE_NET)
 	case ARPHRD_IEEE1394:
 		break;
 #endif
 	default:	// Ethernet is here
+		tha = arp_ptr;
+		printk(ARP_PROJECT"%s - Target HW: ", __func__);
+		for(i = 0; i < dev->addr_len - 1; i++)
+			printk("%02x:", tha[i]);
+		printk("%02x\n", tha[i]);
 		/*
 
 		arp_project
 
-		 We can set ARP replys's sender HW adress by dev->dev_addr.
+		 We can set ARP reply's sender HW adress by dev->dev_addr.
 		 So we don't need target HW address from ARP request. Jump it.
 		*/
 		arp_ptr += dev->addr_len;
 	}
 	memcpy(&tip, arp_ptr, 4); // Get target IP address
+	memcpy(&ip_tmp, arp_ptr, 4);
+	printk(ARP_PROJECT"%s - Target IP: ", __func__);
+	for (i = 0; i < 3; i++)
+		printk("%d.", ip_tmp[i]);
+	printk("%d\n", ip_tmp[i]);
+
 /*
  *	Check for bad requests for 127.x.x.x and requests for multicast
  *	addresses.  If this is one such, delete it.
@@ -1056,6 +1109,13 @@ __neigh_lookup(struct neigh_table *tbl, const void *pkey, struct net_device *dev
 			n = __neigh_lookup(&arp_tbl, &sip, dev, 1);
 	}
 
+	/*
+
+	arp_project
+
+	  Check NUD states here.
+	  http://www.embeddedlinux.org.cn/linux_net/0596002556/understandlni-CHP-26-SECT-6.html
+	*/
 	if (n) {
 		int state = NUD_REACHABLE;
 		int override;
@@ -1077,6 +1137,7 @@ __neigh_lookup(struct neigh_table *tbl, const void *pkey, struct net_device *dev
 		if (arp->ar_op != htons(ARPOP_REPLY) ||
 		    skb->pkt_type != PACKET_HOST)
 			state = NUD_STALE;
+		/* arp_project - See net/core/neighbour.c */
 		neigh_update(n, sha, state,
 			     override ? NEIGH_UPDATE_F_OVERRIDE : 0);
 		neigh_release(n);
