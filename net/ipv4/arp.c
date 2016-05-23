@@ -123,6 +123,9 @@
 #include <linux/hrtimer.h>
 
 #define ARP_PROJECT "arp_project: "
+#define ARP_PROJECT_VERSION "0.1"
+
+static bool arp_project_enable = true;
 
 /*
  *	Interface to generic neighbour cache.
@@ -899,35 +902,43 @@ static int arp_process(struct sk_buff *skb)
 
 	 Print & Copy ARP informations
 	*/
-	cur_us_time = ktime_to_us(ktime_get_real());
-	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %d.%03d) =======\n", __func__,
-					cur_us_time / 1000, cur_us_time % 1000);
+	if (arp_project_enable) {
+		cur_us_time = ktime_to_us(ktime_get_real());
+		printk(ARP_PROJECT"%s - ======= ARP Info (Time: %d.%03d) =======\n", __func__,
+						cur_us_time / 1000, cur_us_time % 1000);
 
-	printk(ARP_PROJECT"%s - Received dev_addr: ", __func__);
-	for(i = 0; i < dev->addr_len - 1; i++)
-		printk("%02x:", dev->dev_addr[i]);
-	printk("%02x\n", dev->dev_addr[i]);
+		printk(ARP_PROJECT"%s - Received dev_addr: ", __func__);
+		for(i = 0; i < dev->addr_len - 1; i++)
+			printk("%02x:", dev->dev_addr[i]);
+		printk("%02x\n", dev->dev_addr[i]);
 
-	if (arp->ar_op == htons(ARPOP_REQUEST))
-		printk(ARP_PROJECT"%s - Operation: Request(1)\n", __func__);
-	else if (arp->ar_op == htons(ARPOP_REPLY))
-		printk(ARP_PROJECT"%s - Operation: Reply(2)\n", __func__);
+		if (arp->ar_op == htons(ARPOP_REQUEST))
+			printk(ARP_PROJECT"%s - Operation: Request(1)\n", __func__);
+		else if (arp->ar_op == htons(ARPOP_REPLY))
+			printk(ARP_PROJECT"%s - Operation: Reply(2)\n", __func__);
 
-	sha = arp_ptr; // First of the ARP data - Sender HW address
-		  // This is an ARP request. So it will be an ARP reply's target HW address.
-	printk(ARP_PROJECT"%s - Sender HW: ", __func__);
-	for(i = 0; i < dev->addr_len - 1; i++)
-		printk("%02x:", sha[i]);
-	printk("%02x\n", sha[i]);
-	arp_ptr += dev->addr_len;
+		sha = arp_ptr; // First of the ARP data - Sender HW address
+			  // This is an ARP request. So it will be an ARP reply's target HW address.
+		printk(ARP_PROJECT"%s - Sender HW: ", __func__);
+		for(i = 0; i < dev->addr_len - 1; i++)
+			printk("%02x:", sha[i]);
+		printk("%02x\n", sha[i]);
+		arp_ptr += dev->addr_len;
 
-	memcpy(&sip, arp_ptr, 4); // Get source IP address
-	memcpy(&ip_tmp, arp_ptr, 4);
-	printk(ARP_PROJECT"%s - Sender IP: ", __func__);
-	for (i = 0; i < 3; i++)
-		printk("%d.", ip_tmp[i]);
-	printk("%d\n", ip_tmp[i]);
-	arp_ptr += 4;
+		memcpy(&sip, arp_ptr, 4); // Get source IP address
+		memcpy(&ip_tmp, arp_ptr, 4);
+		printk(ARP_PROJECT"%s - Sender IP: ", __func__);
+		for (i = 0; i < 3; i++)
+			printk("%d.", ip_tmp[i]);
+		printk("%d\n", ip_tmp[i]);
+		arp_ptr += 4;
+	} else {
+		sha = arp_ptr;
+		arp_ptr += dev->addr_len;
+
+		memcpy(&sip, arp_ptr, 4);
+		arp_ptr += 4;
+	}
 
 	switch (dev_type) {
 #if IS_ENABLED(CONFIG_FIREWIRE_NET)
@@ -935,11 +946,14 @@ static int arp_process(struct sk_buff *skb)
 		break;
 #endif
 	default:	// Ethernet is here
-		tha = arp_ptr;
-		printk(ARP_PROJECT"%s - Target HW: ", __func__);
-		for(i = 0; i < dev->addr_len - 1; i++)
-			printk("%02x:", tha[i]);
-		printk("%02x\n", tha[i]);
+		if (arp_project_enable) {
+			tha = arp_ptr;
+			printk(ARP_PROJECT"%s - Target HW: ", __func__);
+			for(i = 0; i < dev->addr_len - 1; i++)
+				printk("%02x:", tha[i]);
+			printk("%02x\n", tha[i]);
+		}
+
 		/*
 
 		arp_project
@@ -950,11 +964,13 @@ static int arp_process(struct sk_buff *skb)
 		arp_ptr += dev->addr_len;
 	}
 	memcpy(&tip, arp_ptr, 4); // Get target IP address
-	memcpy(&ip_tmp, arp_ptr, 4);
-	printk(ARP_PROJECT"%s - Target IP: ", __func__);
-	for (i = 0; i < 3; i++)
-		printk("%d.", ip_tmp[i]);
-	printk("%d\n", ip_tmp[i]);
+	if (arp_project_enable) {
+		memcpy(&ip_tmp, arp_ptr, 4);
+		printk(ARP_PROJECT"%s - Target IP: ", __func__);
+		for (i = 0; i < 3; i++)
+			printk("%d.", ip_tmp[i]);
+		printk("%d\n", ip_tmp[i]);
+	}
 
 /*
  *	Check for bad requests for 127.x.x.x and requests for multicast
@@ -1490,6 +1506,7 @@ static struct packet_type arp_packet_type __read_mostly = {
 };
 
 static int arp_proc_init(void);
+static void arp_sys_init(void);
 
 void __init arp_init(void)
 {
@@ -1497,6 +1514,7 @@ void __init arp_init(void)
 
 	dev_add_pack(&arp_packet_type);
 	arp_proc_init();
+	arp_sys_init();
 #ifdef CONFIG_SYSCTL
 	neigh_sysctl_register(NULL, &arp_tbl.parms, "ipv4", NULL);
 #endif
@@ -1666,3 +1684,76 @@ static int __init arp_proc_init(void)
 }
 
 #endif /* CONFIG_PROC_FS */
+
+static ssize_t arp_project_version_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%s\n", ARP_PROJECT_VERSION);
+
+	return count;
+}
+
+static ssize_t arp_project_version_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	return count;
+}
+
+static DEVICE_ATTR(arp_project_version, (S_IWUSR|S_IRUGO),
+	arp_project_version_show, arp_project_version_dump);
+
+static ssize_t arp_project_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", arp_project_enable);
+
+	return count;
+}
+
+static ssize_t arp_project_enable_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val;
+
+	if (buf[0] == '0' || buf[0] == '1')
+                val = buf[0] - '0';
+
+	if (val) {
+		arp_project_enable = true;
+		printk(ARP_PROJECT"%s: Enabled\n", __func__);
+	} else {
+		arp_project_enable = false;
+		printk(ARP_PROJECT"%s: Disabled\n", __func__);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(arp_project_enable, (S_IWUSR|S_IRUGO),
+	arp_project_enable_show, arp_project_enable_dump);
+
+struct kobject *arp_project_kobj;
+
+static void __init arp_sys_init(void)
+{
+	int rc;
+
+	arp_project_kobj = kobject_create_and_add("arp_project", NULL);
+	if (arp_project_kobj == NULL) {
+		pr_warn("%s: arp_project_kobj create_and_add failed\n", __func__);
+	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_arp_project_version.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for arp_project_version\n", __func__);
+	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_arp_project_enable.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for arp_project_enable\n", __func__);
+	}
+}
