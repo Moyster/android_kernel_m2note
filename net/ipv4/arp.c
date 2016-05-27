@@ -786,7 +786,7 @@ EXPORT_SYMBOL(arp_xmit);
 
 /*
  * @dev - net device
- * @arp_ptr - arp sha, sip, tha, tip informations
+ * @arp - arp header
  * @count - 0: Recevied ARP, 1: Sending ARP
  */
 void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
