@@ -119,13 +119,12 @@
 #include <linux/netfilter_arp.h>
 
 /* arp_project */
-#include <linux/ktime.h>
-#include <linux/hrtimer.h>
-
 #define ARP_PROJECT "arp_project: "
 #define ARP_PROJECT_VERSION "0.1"
 
 static bool arp_project_enable = true;
+
+unsigned long init_time;
 
 /*
  *	Interface to generic neighbour cache.
@@ -794,11 +793,11 @@ void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
 	unsigned char *arp_ptr;
 	unsigned char *ha; // Hardware Address
 	unsigned char ip_tmp[4];
-	unsigned int cur_ms_time;
+	unsigned long cur_ms_time;
 	int i;
 
-	cur_ms_time = ktime_to_ms(ktime_get_real());
-	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %ums) =======\n", __func__,
+	cur_ms_time = jiffies_to_msecs(jiffies - init_time);
+	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %lums) =======\n", __func__,
 								cur_ms_time);
 
 	/* net_device info */
@@ -1543,7 +1542,12 @@ void __init arp_init(void)
 
 	dev_add_pack(&arp_packet_type);
 	arp_proc_init();
+
+	/* arp_project */
+	printk("(C) 2016 arp_project by jollaman999, hasuk58, peace7944\n");
+	init_time = jiffies;
 	arp_sys_init();
+
 #ifdef CONFIG_SYSCTL
 	neigh_sysctl_register(NULL, &arp_tbl.parms, "ipv4", NULL);
 #endif
