@@ -798,7 +798,7 @@ void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
 	int i;
 
 	cur_ms_time = ktime_to_ms(ktime_get_real());
-	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %dms) =======\n", __func__,
+	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %ums) =======\n", __func__,
 								cur_ms_time);
 
 	/* net_device info */
