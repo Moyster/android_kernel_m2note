@@ -796,9 +796,9 @@ void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
 	unsigned long cur_ms_time;
 	int i;
 
-	cur_ms_time = jiffies_to_msecs(jiffies - init_time);
-	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %lums) =======\n", __func__,
-								cur_ms_time);
+	cur_ms_time = jiffies_to_usecs(jiffies - init_time);
+	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %lu.%6lus) =======\n", __func__,
+					cur_ms_time / 1000000, cur_ms_time % 1000000);
 
 	/* net_device info */
 	if (count)
