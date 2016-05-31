@@ -1146,6 +1146,17 @@ static inline struct neighbour *neigh_create(struct neigh_table *tbl,
 		   It is possible, that this option should be enabled for some
 		   devices (strip is candidate)
 		 */
+		/*
+		arp_project
+
+		GARP (Gratuitous ARP) - Send ARP request with sip == tip
+
+		 When ARP request sended with same source IP and target IP,
+		received hosts will update there ARP tables with new hardware address.
+
+		 Also GARP used to find duplicated IP address.
+		 It will receive ARP reply when there is conflicted IP address.
+		*/
 		is_garp = arp->ar_op == htons(ARPOP_REQUEST) && tip == sip &&
 			  inet_addr_type(net, sip) == RTN_UNICAST;
 
