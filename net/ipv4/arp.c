@@ -788,7 +788,7 @@ EXPORT_SYMBOL(arp_xmit);
  * @arp - arp header
  * @count - 0: Recevied ARP, 1: Sending ARP
  */
-void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
+static void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
 {
 	unsigned char *arp_ptr;
 	unsigned char *ha; // Hardware Address
