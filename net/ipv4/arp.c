@@ -123,6 +123,7 @@
 #define ARP_PROJECT_VERSION "0.1"
 
 static bool arp_project_enable = true;
+static bool print_arp_info = false;
 
 unsigned long init_time;
 
@@ -881,7 +882,7 @@ void arp_send(int type, int ptype, __be32 dest_ip,
 		return;
 
 	/* arp_project - Print arp_ptr infos */
-	if (arp_project_enable)
+	if (arp_project_enable && print_arp_info)
 		arp_print_info(dev, arp_hdr(skb), 1);
 
 	arp_xmit(skb);
@@ -964,7 +965,7 @@ static int arp_process(struct sk_buff *skb)
 		goto out;
 
 	/* arp_project - Print arp_ptr infos */
-	if (arp_project_enable)
+	if (arp_project_enable && print_arp_info)
 		arp_print_info(dev, arp, 0);
 
 /*
@@ -1777,6 +1778,46 @@ static ssize_t arp_project_enable_dump(struct device *dev,
 static DEVICE_ATTR(arp_project_enable, (S_IWUSR|S_IRUGO),
 	arp_project_enable_show, arp_project_enable_dump);
 
+static ssize_t print_arp_info_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", print_arp_info);
+
+	return count;
+}
+
+static ssize_t print_arp_info_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (print_arp_info)
+		val = 1;
+
+	if ((buf[0] == '0' || buf[0] == '1') && buf[1] == '\n') {
+		if (val != buf[0] - '0')
+			val = buf[0] - '0';
+		else
+			return count;
+	} else
+		return -EINVAL;
+
+	if (val) {
+		print_arp_info = true;
+		printk(ARP_PROJECT"%s: Enabled\n", __func__);
+	} else {
+		print_arp_info = false;
+		printk(ARP_PROJECT"%s: Disabled\n", __func__);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(print_arp_info, (S_IWUSR|S_IRUGO),
+	print_arp_info_show, print_arp_info_dump);
+
 struct kobject *arp_project_kobj;
 
 static void __init arp_sys_init(void)
@@ -1796,5 +1837,10 @@ static void __init arp_sys_init(void)
 	rc = sysfs_create_file(arp_project_kobj, &dev_attr_arp_project_enable.attr);
 	if (rc) {
 		pr_warn("%s: sysfs_create_file failed for arp_project_enable\n", __func__);
+	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_print_arp_info.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for print_arp_info\n", __func__);
 	}
 }
