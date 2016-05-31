@@ -1750,10 +1750,18 @@ static ssize_t arp_project_enable_show(struct device *dev,
 static ssize_t arp_project_enable_dump(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	int val;
+	int val = 0;
 
-	if (buf[0] == '0' || buf[0] == '1')
-                val = buf[0] - '0';
+	if (arp_project_enable)
+		val = 1;
+
+	if ((buf[0] == '0' || buf[0] == '1') && buf[1] == '\n') {
+		if (val != buf[0] - '0')
+			val = buf[0] - '0';
+		else
+			return count;
+	} else
+		return -EINVAL;
 
 	if (val) {
 		arp_project_enable = true;
