@@ -119,13 +119,20 @@
 #include <linux/netfilter_arp.h>
 
 /* arp_project */
+#include <linux/workqueue.h>
+
 #define ARP_PROJECT "arp_project: "
 #define ARP_PROJECT_VERSION "0.1"
 
 static bool arp_project_enable = true;
 static bool print_arp_info = false;
 
-unsigned long init_time;
+static unsigned long init_time;
+static struct delayed_work arp_allow_reply_lock_work;
+static struct workqueue_struct *arp_allow_reply_lock_workqueue;
+static unsigned int arp_allow_reply_lock_time = 1 * HZ;
+static bool arp_allow_reply = false;
+static __be32 arp_req_prev_dst_ip;
 
 /*
  *	Interface to generic neighbour cache.
@@ -292,6 +299,10 @@ static void arp_error_report(struct neighbour *neigh, struct sk_buff *skb)
 }
 
 /*
+ * arp_project
+ *
+ * Print ARP packet informations
+ *
  * @dev - net device
  * @arp - arp header
  * @count - 0: Recevied ARP, 1: Sending ARP
@@ -364,6 +375,16 @@ static void arp_print_info(struct net_device *dev, struct arphdr *arp, int count
 	printk("%d\n", ip_tmp[i]);
 }
 
+/*
+ * arp_project
+ *
+ * Work structure for prevent receiving arp reply.
+ */
+static void arp_allow_reply_lock(struct work_struct *work)
+{
+	arp_allow_reply = false;
+}
+
 /* Create and send an arp packet. */
 static void arp_send_dst(int type, int ptype, __be32 dest_ip,
 			 struct net_device *dev, __be32 src_ip,
@@ -384,9 +405,26 @@ static void arp_send_dst(int type, int ptype, __be32 dest_ip,
 	if (!skb)
 		return;
 
-	/* arp_project - Print arp_ptr infos */
-	if (arp_project_enable && print_arp_info)
-		arp_print_info(dev, arp_hdr(skb), 1);
+	/* arp_project */
+	if (arp_project_enable) {
+		struct arphdr *arp;
+
+		/* Get ARP header */
+		arp = arp_hdr(skb);
+		/* Print arp_ptr infos */
+		if (print_arp_info)
+			arp_print_info(dev, arp, 1);
+
+		/* Allow ARP reply and save dst ip if request */
+		if (arp->ar_op == htons(ARPOP_REQUEST)) {
+			cancel_delayed_work(&arp_allow_reply_lock_work);
+			arp_allow_reply = true;
+			memcpy(&arp_req_prev_dst_ip, &dest_ip, 4);
+			queue_delayed_work(arp_allow_reply_lock_workqueue,
+					&arp_allow_reply_lock_work,
+					msecs_to_jiffies(arp_allow_reply_lock_time));
+		}
+	}
 
 	if (oskb)
 		skb_dst_copy(skb, oskb);
@@ -1093,6 +1131,21 @@ static int arp_process(struct sk_buff *skb)
 
 	// If REPLY
 
+	/* arp_project */
+	if (arp_project_enable && arp->ar_op == htons(ARPOP_REPLY)) {
+		/* Ignore the ARP reply when request not proceeded */
+		if (!arp_allow_reply) {
+			printk(ARP_PROJECT"%s: arp_allow_reply_lock_time exceeded!\n", __func__);
+			printk(ARP_PROJECT"%s: Ignoring ARP reply...\n", __func__);
+			goto out_free_skb;
+		/* Ignore the ARP reply that we didn't requested */
+		} else if (memcmp(&sip, &arp_req_prev_dst_ip, 4)) {
+			printk(ARP_PROJECT"%s: Reply's sip is differrent with requested tip!\n", __func__);
+			printk(ARP_PROJECT"%s: Ignoring ARP reply...\n", __func__);
+			goto out_free_skb;
+		}
+	}
+
 	/* Update our ARP tables */
 
 	// Is there already a neibour entry for sip?
@@ -1550,6 +1603,9 @@ void __init arp_init(void)
 	printk("(C) 2016 arp_project by jollaman999, hasuk58, peace7944\n");
 	init_time = jiffies;
 	arp_sys_init();
+	arp_allow_reply_lock_workqueue =
+			alloc_workqueue("arp_allow_reply_lock", WQ_UNBOUND | WQ_HIGHPRI, 0);
+	INIT_DELAYED_WORK(&arp_allow_reply_lock_work, arp_allow_reply_lock);
 
 #ifdef CONFIG_SYSCTL
 	neigh_sysctl_register(NULL, &arp_tbl.parms, "ipv4", NULL);
@@ -1721,6 +1777,7 @@ static int __init arp_proc_init(void)
 
 #endif /* CONFIG_PROC_FS */
 
+/********************** arp_project sysfs **********************/
 static ssize_t arp_project_version_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1817,6 +1874,37 @@ static ssize_t print_arp_info_dump(struct device *dev,
 	return count;
 }
 
+static ssize_t arp_allow_reply_lock_time_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%u\n", arp_allow_reply_lock_time);
+
+	return count;
+}
+
+static ssize_t arp_allow_reply_lock_time_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	unsigned int val;
+
+	ret = sscanf(buf, "%u", &val);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (val < 1 || val > 10000)
+		return -EINVAL;
+
+	arp_allow_reply_lock_time = val;
+
+	return count;
+}
+
+static DEVICE_ATTR(arp_allow_reply_lock_time, (S_IWUSR|S_IRUGO),
+	arp_allow_reply_lock_time_show, arp_allow_reply_lock_time_dump);
+
 static DEVICE_ATTR(print_arp_info, (S_IWUSR|S_IRUGO),
 	print_arp_info_show, print_arp_info_dump);
 
@@ -1845,4 +1933,10 @@ static void __init arp_sys_init(void)
 	if (rc) {
 		pr_warn("%s: sysfs_create_file failed for print_arp_info\n", __func__);
 	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_arp_allow_reply_lock_time.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for arp_allow_reply_lock_time\n", __func__);
+	}
 }
+/********************** arp_project sysfs **********************/
