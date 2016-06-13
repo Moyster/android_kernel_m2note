@@ -126,6 +126,7 @@
 
 static bool arp_project_enable = true;
 static bool print_arp_info = false;
+static bool ignore_gw_update_by_request = true;
 
 static unsigned long init_time;
 static struct delayed_work arp_allow_reply_lock_work;
@@ -898,9 +899,38 @@ void arp_xmit(struct sk_buff *skb)
 EXPORT_SYMBOL(arp_xmit);
 
 /*
+ * arp_project
+ *
+ * Find default gateway from route table and check attempt of gateway update.
+ *
+ * 0 - Default gateway not found from route table or normal request.
+ * 1 - Default gateway found and gateway update detected from other hardware address.
+ */
+static int arp_find_gw(struct net_device *dev, __be32 sip,
+		       unsigned char *sha)
+{
+	struct neighbour *n;
+	int i;
+
+	n = __ipv4_neigh_lookup(dev, *(__force u32 *)&sip);
+	if (n) {
+		if (memcmp(n->ha, sha, dev->addr_len)) {
+			printk(ARP_PROJECT"%s: Gateway update attempt detected from ",
+									__func__);
+			for(i = 0; i < dev->addr_len - 1; i++)
+				printk("%02x:", sha[i]);
+			printk("%02x !\n", sha[i]);
+
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+/*
  *	Process an arp request.
  */
-
 static int arp_process(struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
@@ -1071,7 +1101,6 @@ static int arp_process(struct sk_buff *skb)
 		goto out_consume_skb;
 	}
 
-
 	if (arp->ar_op == htons(ARPOP_REQUEST) && // If REQUEST
 	    ip_route_input_noref(skb, tip, sip, 0, dev) == 0) { // Is there a route between sip & tip?
 
@@ -1086,6 +1115,19 @@ static int arp_process(struct sk_buff *skb)
 			if (!dont_send && IN_DEV_ARPFILTER(in_dev))
 				dont_send = arp_filter(sip, tip, dev);
 			if (!dont_send) {
+				/*
+				 * arp_project
+				 *
+				 *  Find default gateway from route table and
+				 * ignore updates when hardware address is different.
+				 */
+				if (arp_project_enable && ignore_gw_update_by_request) {
+					if (arp_find_gw(dev, sip, sha)) {
+						printk(ARP_PROJECT"%s: Ignoring ARP request...\n", __func__);
+						goto out_free_skb;
+					}
+				}
+
 				// Is there already a neighbour entry for sip?
 				// No -> Create it.
 				// Yes -> Update it.
@@ -1107,6 +1149,19 @@ static int arp_process(struct sk_buff *skb)
 			     arp_fwd_pvlan(in_dev, dev, rt, sip, tip) ||
 			     (rt->dst.dev != dev &&
 			      pneigh_lookup(&arp_tbl, net, &tip, dev, 0)))) { // Is the request entry present in the proxy ARP table?
+				/*
+				 * arp_project
+				 *
+				 *  Find default gateway from route table and
+				 * ignore updates when hardware address is different.
+				 */
+				if (arp_project_enable && ignore_gw_update_by_request) {
+					if (arp_find_gw(dev, sip, sha)) {
+						printk(ARP_PROJECT"%s: Ignoring ARP request...\n", __func__);
+						goto out_free_skb;
+					}
+				}
+
 				// Is there already a neibour entry for sip?
 				// Create or update
 				n = neigh_event_ns(&arp_tbl, sha, &sip, dev);
@@ -1874,6 +1929,9 @@ static ssize_t print_arp_info_dump(struct device *dev,
 	return count;
 }
 
+static DEVICE_ATTR(print_arp_info, (S_IWUSR|S_IRUGO),
+	print_arp_info_show, print_arp_info_dump);
+
 static ssize_t arp_allow_reply_lock_time_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1905,8 +1963,45 @@ static ssize_t arp_allow_reply_lock_time_dump(struct device *dev,
 static DEVICE_ATTR(arp_allow_reply_lock_time, (S_IWUSR|S_IRUGO),
 	arp_allow_reply_lock_time_show, arp_allow_reply_lock_time_dump);
 
-static DEVICE_ATTR(print_arp_info, (S_IWUSR|S_IRUGO),
-	print_arp_info_show, print_arp_info_dump);
+static ssize_t ignore_gw_update_by_request_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", ignore_gw_update_by_request);
+
+	return count;
+}
+
+static ssize_t ignore_gw_update_by_request_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (ignore_gw_update_by_request)
+		val = 1;
+
+	if ((buf[0] == '0' || buf[0] == '1') && buf[1] == '\n') {
+		if (val != buf[0] - '0')
+			val = buf[0] - '0';
+		else
+			return count;
+	} else
+		return -EINVAL;
+
+	if (val) {
+		ignore_gw_update_by_request = true;
+		printk(ARP_PROJECT"%s: Enabled\n", __func__);
+	} else {
+		ignore_gw_update_by_request = false;
+		printk(ARP_PROJECT"%s: Disabled\n", __func__);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(ignore_gw_update_by_request, (S_IWUSR|S_IRUGO),
+	ignore_gw_update_by_request_show, ignore_gw_update_by_request_dump);
 
 struct kobject *arp_project_kobj;
 
@@ -1937,6 +2032,11 @@ static void __init arp_sys_init(void)
 	rc = sysfs_create_file(arp_project_kobj, &dev_attr_arp_allow_reply_lock_time.attr);
 	if (rc) {
 		pr_warn("%s: sysfs_create_file failed for arp_allow_reply_lock_time\n", __func__);
+	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_ignore_gw_update_by_request.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for ignore_gw_update_by_request\n", __func__);
 	}
 }
 /********************** arp_project sysfs **********************/
