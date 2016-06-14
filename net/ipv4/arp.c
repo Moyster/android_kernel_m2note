@@ -923,6 +923,7 @@ static int arp_find_gw(struct net_device *dev, __be32 sip,
 
 			return 1;
 		}
+		neigh_release(n);
 	}
 
 	return 0;
