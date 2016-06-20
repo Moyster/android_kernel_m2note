@@ -904,6 +904,64 @@ INT32 wcn_compressor_reset(P_WCN_COMPRESSOR_T cprs, UINT8 enable, WCN_COMPRESS_A
 	return 0;
 }
 
+INT32 wcn_core_dump_nl(P_WCN_CORE_DUMP_T dmp, PUINT8 buf, INT32 len)
+{
+	INT32 ret = 0;
+
+	if ((!dmp) || (!buf)) {
+		STP_DBG_ERR_FUNC("invalid pointer!\n");
+		return -1;
+	}
+
+	ret = osal_lock_sleepable_lock(&dmp->dmp_lock);
+	if (ret) {
+		STP_DBG_ERR_FUNC("--->lock dmp->dmp_lock failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	switch (dmp->sm) {
+	case CORE_DUMP_INIT:
+		osal_timer_start(&dmp->dmp_timer, STP_CORE_DUMP_TIMEOUT);
+		STP_DBG_WARN_FUNC("COMBO_CONSYS coredump start, please wait up to 1 minutes.\n");
+		/* check end srting */
+		ret = wcn_core_dump_check_end(buf, len);
+		if (ret == 1) {
+			STP_DBG_INFO_FUNC("core dump end!\n");
+			osal_timer_stop(&dmp->dmp_timer);
+			dmp->sm = CORE_DUMP_INIT;
+		} else {
+			dmp->sm = CORE_DUMP_DOING;
+		}
+		break;
+
+	case CORE_DUMP_DOING:
+		/* check end srting */
+		ret = wcn_core_dump_check_end(buf, len);
+		if (ret == 1) {
+			STP_DBG_INFO_FUNC("core dump end!\n");
+			osal_timer_stop(&dmp->dmp_timer);
+			dmp->sm = CORE_DUMP_INIT;
+		} else {
+			dmp->sm = CORE_DUMP_DOING;
+		}
+		break;
+
+	case CORE_DUMP_DONE:
+		osal_timer_stop(&dmp->dmp_timer);
+		dmp->sm = CORE_DUMP_INIT;
+		break;
+
+	case CORE_DUMP_TIMEOUT:
+		ret = CORE_DUMP_TIMEOUT_RET;
+		break;
+	default:
+		break;
+	}
+
+	osal_unlock_sleepable_lock(&dmp->dmp_lock);
+
+	return ret;
+}
 
 static VOID stp_dbg_dump_data(PUINT8 pBuf, PINT8 title, INT32 len)
 {
@@ -1310,17 +1368,25 @@ static INT32 stp_dbg_nl_reset(struct sk_buff *skb, struct genl_info *info)
 	return 0;
 }
 
-INT8 stp_dbg_nl_send(PINT8 aucMsg, UINT8 cmd)
+INT8 stp_dbg_nl_send(PINT8 aucMsg, UINT8 cmd, INT32 len)
 {
 	struct sk_buff *skb = NULL;
 	PVOID msg_head = NULL;
 	INT32 rc = -1;
 	INT32 i;
+	INT32 ret = 0;
 
 	if (num_bind_process == 0) {
 		/* no listening process */
 		STP_DBG_ERR_FUNC("%s(): the process is not invoked\n", __func__);
 		return 0;
+	}
+
+	ret = wcn_core_dump_nl(g_core_dump, aucMsg, len);
+	if (ret < 0)
+		return ret;
+	if (ret == CORE_DUMP_TIMEOUT_RET) {
+		return ret;
 	}
 
 	for (i = 0; i < num_bind_process; i++) {
@@ -1335,11 +1401,11 @@ INT8 stp_dbg_nl_send(PINT8 aucMsg, UINT8 cmd)
 				return -1;
 			}
 
-			rc = nla_put_string(skb, STP_DBG_ATTR_MSG, aucMsg);
+			rc = nla_put(skb, STP_DBG_ATTR_MSG, aucMsg);
 			if (rc != 0) {
 				nlmsg_free(skb);
-				STP_DBG_ERR_FUNC("%s(): nla_put_string fail...\n", __func__);
-				return -1;
+				STP_DBG_DBG_FUNC("%s(): nla_put_string fail...: %d\n", __func__, rc);
+				return rc;
 			}
 
 			/* finalize the message */
@@ -1348,8 +1414,8 @@ INT8 stp_dbg_nl_send(PINT8 aucMsg, UINT8 cmd)
 			/* sending message */
 			rc = genlmsg_unicast(&init_net, skb, bind_pid[i]);
 			if (rc != 0) {
-				STP_DBG_ERR_FUNC("%s(): genlmsg_unicast fail...\n", __func__);
-				return -1;
+				STP_DBG_DBG_FUNC("%s(): genlmsg_unicast fail...: %d\n", __func__, rc);
+				return rc;
 			}
 		} else {
 			STP_DBG_ERR_FUNC("%s(): genlmsg_new fail...\n", __func__);

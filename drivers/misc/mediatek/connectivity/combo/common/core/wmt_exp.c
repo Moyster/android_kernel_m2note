@@ -98,6 +98,7 @@ static MTK_WCN_BOOL mtk_wcn_wmt_func_ctrl(ENUM_WMTDRV_TYPE_T type, ENUM_WMT_OPID
 	if (DISABLE_PSM_MONITOR()) {
 		WMT_ERR_FUNC("wake up failed\n");
 		wmt_lib_put_op_to_free_queue(pOp);
+		wmt_lib_host_awake_put();
 		return MTK_WCN_BOOL_FALSE;
 	}
 
