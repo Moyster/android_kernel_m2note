@@ -1157,29 +1157,27 @@ long WMT_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case WMT_IOCTL_SET_PATCH_NUM:{
-			pAtchNum = arg;
-			WMT_INFO_FUNC(" get patch num from launcher = %d\n", pAtchNum);
+			UINT32 MAX_UINT = ~0;
+			UINT32 t_patchnum = arg;
 
-			if (pAtchNum > 0 && pAtchNum < WMT_MAX_PATCH_NUM) {
-
-				wmt_lib_set_patch_num(pAtchNum);
-
-				if (!pPatchInfo) {
-					pPatchInfo = kzalloc(sizeof(WMT_PATCH_INFO) * pAtchNum, GFP_ATOMIC);
-				} else {
-					WMT_ERR_FUNC("pPatchInfo!=NULL before alloc\n");
-					break;
-				}
-			} else {
-				WMT_ERR_FUNC("patch num == 0! or > MAX patch number\n");
-			}
-			if (!pPatchInfo) {
-				WMT_ERR_FUNC("allocate memory fail!\n");
-				iRet = -EFAULT;
+			if (t_patchnum <= 0) {
+				WMT_ERR_FUNC("patch num <= 0!\n");
 				break;
 			}
 
-			WMT_INFO_FUNC(" get patch num from launcher = %d\n", pAtchNum);
+			/* Verify that the amount of slots requested wont overflow */
+			if (t_patchnum >= (MAX_UINT / sizeof(WMT_PATCH_INFO))) {
+				WMT_ERR_FUNC("Patch num is too large!\n");
+				break;
+			}
+
+			pPatchInfo = kcalloc(t_patchnum, sizeof(WMT_PATCH_INFO), GFP_ATOMIC);
+			if (!pPatchInfo) {
+				WMT_ERR_FUNC("allocate memory fail!\n");
+				break;
+			}
+			pAtchNum = t_patchnum;
+			WMT_INFO_FUNC("get patch num from launcher = %d\n", pAtchNum);
 			wmt_lib_set_patch_num(pAtchNum);
 		}
 		break;
@@ -1200,7 +1198,11 @@ long WMT_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				iRet = -EFAULT;
 				break;
 			}
-
+			if (wMtPatchInfo.dowloadSeq > pAtchNum) {
+				 WMT_ERR_FUNC("dowloadSeq would overflow\n");
+				 iRet = -EFAULT;
+				 break;
+			}
 			dWloadSeq = wMtPatchInfo.dowloadSeq;
 
 			wMtPatchInfo.patchName[sizeof(wMtPatchInfo.patchName)-1] = '\0';
