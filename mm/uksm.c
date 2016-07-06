@@ -4927,8 +4927,11 @@ static ssize_t sleep_millisecs_store(struct kobject *kobj,
 	int err;
 
 	err = strict_strtoul(buf, 10, &msecs);
-	if (err || msecs > MSEC_PER_SEC)
+	if (err)
 		return -EINVAL;
+
+	if (msecs > MSEC_PER_SEC)
+		msecs = MSEC_PER_SEC;
 
 	uksm_sleep_jiffies = msecs_to_jiffies(msecs);
 
