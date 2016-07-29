@@ -1533,6 +1533,9 @@ BOOLEAN glRegisterP2P(P_GLUE_INFO_T prGlueInfo, const char *prDevName, BOOLEAN f
 	/*set_wiphy_dev(gprP2pWdev->wiphy, prDev);*/
 	if (!prGlueInfo->prAdapter->fgEnable5GBand)
 		gprP2pWdev->wiphy->bands[IEEE80211_BAND_5GHZ] = NULL;
+#ifdef CONFIG_MTK_COMBO_DISABLE_5G_FOR_P2P
+	gprP2pWdev->wiphy->bands[IEEE80211_BAND_5GHZ] = NULL;
+#endif
 	p2pUpdateChannelTableByDomain(prGlueInfo);
 	/* 2 set priv as pointer to glue structure */
 	*(P_GLUE_INFO_T *) wiphy_priv(gprP2pWdev->wiphy) = prGlueInfo;
