@@ -325,7 +325,7 @@ static void arp_print_info(struct net_device *dev, struct arphdr *arp, int count
 		printk(ARP_PROJECT"%s - Sending dev_addr: ", __func__);
 	else
 		printk(ARP_PROJECT"%s - Received dev_addr: ", __func__);
-	for(i = 0; i < dev->addr_len - 1; i++)
+	for (i = 0; i < dev->addr_len - 1; i++)
 		printk("%02x:", dev->dev_addr[i]);
 	printk("%02x\n", dev->dev_addr[i]);
 
@@ -341,7 +341,7 @@ static void arp_print_info(struct net_device *dev, struct arphdr *arp, int count
 	/* Sender Hardware Address info */
 	ha = arp_ptr; // First of the ARP data - Sender HW address
 	printk(ARP_PROJECT"%s - Sender HW: ", __func__);
-	for(i = 0; i < dev->addr_len - 1; i++)
+	for (i = 0; i < dev->addr_len - 1; i++)
 		printk("%02x:", ha[i]);
 	printk("%02x\n", ha[i]);
 
@@ -361,7 +361,7 @@ static void arp_print_info(struct net_device *dev, struct arphdr *arp, int count
 	/* Target Hardware Address info */
 	ha = arp_ptr;
 	printk(ARP_PROJECT"%s - Target HW: ", __func__);
-	for(i = 0; i < dev->addr_len - 1; i++)
+	for (i = 0; i < dev->addr_len - 1; i++)
 		printk("%02x:", ha[i]);
 	printk("%02x\n", ha[i]);
 
@@ -917,7 +917,7 @@ static int arp_find_gw(struct net_device *dev, __be32 sip,
 		if (memcmp(n->ha, sha, dev->addr_len)) {
 			printk(ARP_PROJECT"%s: Gateway update attempt detected from ",
 									__func__);
-			for(i = 0; i < dev->addr_len - 1; i++)
+			for (i = 0; i < dev->addr_len - 1; i++)
 				printk("%02x:", sha[i]);
 			printk("%02x !\n", sha[i]);
 
