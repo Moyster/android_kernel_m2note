@@ -910,6 +910,7 @@ static int arp_find_gw(struct net_device *dev, __be32 sip,
 		       unsigned char *sha)
 {
 	struct neighbour *n;
+	int found = 0;
 	int i;
 
 	n = __ipv4_neigh_lookup(dev, *(__force u32 *)&sip);
@@ -921,12 +922,12 @@ static int arp_find_gw(struct net_device *dev, __be32 sip,
 				printk("%02x:", sha[i]);
 			printk("%02x !\n", sha[i]);
 
-			return 1;
+			found = 1;
 		}
 		neigh_release(n);
 	}
 
-	return 0;
+	return found;
 }
 
 /*
