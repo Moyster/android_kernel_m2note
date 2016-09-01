@@ -120,13 +120,11 @@
 
 /* arp_project */
 #include <linux/workqueue.h>
+#include <net/arp_project.h>
 
-#define ARP_PROJECT "arp_project: "
-#define ARP_PROJECT_VERSION "0.1"
-
-static bool arp_project_enable = true;
-static bool print_arp_info = false;
-static bool ignore_gw_update_by_request = true;
+bool arp_project_enable = true;
+bool print_arp_info = false;
+bool ignore_gw_update_by_request = true;
 
 static unsigned long init_time;
 static struct delayed_work arp_allow_reply_lock_work;
@@ -308,7 +306,7 @@ static void arp_error_report(struct neighbour *neigh, struct sk_buff *skb)
  * @arp - arp header
  * @count - 0: Recevied ARP, 1: Sending ARP
  */
-static void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
+void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
 {
 	unsigned char *arp_ptr;
 	unsigned char *ha; // Hardware Address
