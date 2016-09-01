@@ -123,7 +123,9 @@
 
 bool arp_project_enable = true;
 bool print_arp_info = false;
-bool ignore_gw_update_by_request = true;
+static bool ignore_gw_update_by_request = true;
+EXPORT_SYMBOL(arp_project_enable);
+EXPORT_SYMBOL(print_arp_info);
 
 static unsigned long init_time;
 static struct delayed_work arp_allow_reply_lock_work;
@@ -372,6 +374,7 @@ void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
 		printk("%d.", ip_tmp[i]);
 	printk("%d\n", ip_tmp[i]);
 }
+EXPORT_SYMBOL(arp_print_info);
 
 /*
  * arp_project
@@ -419,6 +422,7 @@ void arp_print_and_check_send(struct net_device *dev, struct sk_buff *skb)
 				msecs_to_jiffies(arp_allow_reply_lock_time));
 	}
 }
+EXPORT_SYMBOL(arp_print_and_check_send);
 
 /* Create and send an arp packet. */
 static void arp_send_dst(int type, int ptype, __be32 dest_ip,

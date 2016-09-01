@@ -137,7 +137,10 @@
 #endif
 
 /* arp_project */
-#include <net/arp_project.h>
+extern bool arp_project_enable;
+extern bool print_arp_info;
+extern void arp_print_info(struct net_device *dev, struct arphdr *arp, int count);
+extern void arp_print_and_check_send(struct net_device *dev, struct sk_buff *skb);
 
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
