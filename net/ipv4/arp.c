@@ -383,6 +383,43 @@ static void arp_allow_reply_lock(struct work_struct *work)
 	arp_allow_reply = false;
 }
 
+/*
+ * arp_project
+ *
+ *  Print information of sending ARP packet and
+ * check its data.
+ *  This function is called by "dev_queue_xmit".
+ *  See "net/core/dev.c".
+ */
+void arp_print_and_check_send(struct net_device *dev, struct sk_buff *skb)
+{
+	struct arphdr *arp;
+	unsigned char *arp_ptr;
+	__be32 dest_ip;
+
+	/* Get ARP header */
+	arp = arp_hdr(skb);
+
+	/* Get destination IP address */
+	arp_ptr = (unsigned char *)(arp + 1);	// Next to the ARP Header (arp_hdr)
+	arp_ptr += (dev->addr_len * 2 + 4); // Skip source MAC, source IP and target MAC
+	memcpy(&dest_ip, arp_ptr, 4);
+
+	/* Print arp_ptr infos */
+	if (print_arp_info)
+		arp_print_info(dev, arp, 1);
+
+	/* Allow ARP reply and save dst ip if request */
+	if (arp->ar_op == htons(ARPOP_REQUEST)) {
+		cancel_delayed_work(&arp_allow_reply_lock_work);
+		arp_allow_reply = true;
+		memcpy(&arp_req_prev_dst_ip, &dest_ip, 4);
+		queue_delayed_work(arp_allow_reply_lock_workqueue,
+				&arp_allow_reply_lock_work,
+				msecs_to_jiffies(arp_allow_reply_lock_time));
+	}
+}
+
 /* Create and send an arp packet. */
 static void arp_send_dst(int type, int ptype, __be32 dest_ip,
 			 struct net_device *dev, __be32 src_ip,
@@ -402,27 +439,6 @@ static void arp_send_dst(int type, int ptype, __be32 dest_ip,
 			 dest_hw, src_hw, target_hw);
 	if (!skb)
 		return;
-
-	/* arp_project */
-	if (arp_project_enable) {
-		struct arphdr *arp;
-
-		/* Get ARP header */
-		arp = arp_hdr(skb);
-		/* Print arp_ptr infos */
-		if (print_arp_info)
-			arp_print_info(dev, arp, 1);
-
-		/* Allow ARP reply and save dst ip if request */
-		if (arp->ar_op == htons(ARPOP_REQUEST)) {
-			cancel_delayed_work(&arp_allow_reply_lock_work);
-			arp_allow_reply = true;
-			memcpy(&arp_req_prev_dst_ip, &dest_ip, 4);
-			queue_delayed_work(arp_allow_reply_lock_workqueue,
-					&arp_allow_reply_lock_work,
-					msecs_to_jiffies(arp_allow_reply_lock_time));
-		}
-	}
 
 	if (oskb)
 		skb_dst_copy(skb, oskb);

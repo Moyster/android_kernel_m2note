@@ -136,6 +136,9 @@
 #include <linux/ftrace_event.h>
 #endif
 
+/* arp_project */
+#include <net/arp_project.h>
+
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
 
@@ -2791,6 +2794,10 @@ int dev_queue_xmit(struct sk_buff *skb)
 	struct netdev_queue *txq;
 	struct Qdisc *q;
 	int rc = -ENOMEM;
+
+	/* arp_project */
+	if (arp_project_enable && skb->protocol == htons(ETH_P_ARP))
+		arp_print_and_check_send(dev, skb);
 
 	skb_reset_mac_header(skb);
 
