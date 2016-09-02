@@ -1157,10 +1157,12 @@ main(int argc, char **argv)
 		saddr.sin_family = AF_INET;
 		if (src.s_addr) {
 			saddr.sin_addr = src;
+/*
 			if (bind(probe_fd, (struct sockaddr*)&saddr, sizeof(saddr)) == -1) {
 				perror("bind");
 				exit(2);
 			}
+*/
 		} else if (!dad) {
 			int on = 1;
 			socklen_t alen = sizeof(saddr);
