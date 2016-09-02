@@ -126,8 +126,6 @@ static bool ignore_gw_update_by_request = true;
 EXPORT_SYMBOL(arp_project_enable);
 EXPORT_SYMBOL(print_arp_info);
 
-unsigned long init_time;
-
 /*
  *	Interface to generic neighbour cache.
  */
@@ -306,12 +304,10 @@ void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
 	unsigned char *arp_ptr;
 	unsigned char *ha; // Hardware Address
 	unsigned char ip_tmp[4];
-	unsigned long cur_ms_time;
 	int i;
 
-	cur_ms_time = jiffies_to_usecs(jiffies - init_time);
-	printk(ARP_PROJECT"%s - ======= ARP Info (Time: %lu.%6lus) =======\n", __func__,
-					cur_ms_time / 1000000, cur_ms_time % 1000000);
+	printk(ARP_PROJECT"%s - =============== ARP Info ===============\n",
+		__func__);
 
 	/* net_device info */
 	if (count)
@@ -1678,7 +1674,6 @@ void __init arp_init(void)
 
 	/* arp_project */
 	printk("(C) 2016 arp_project by jollaman999, hasuk58, peace7944\n");
-	init_time = jiffies;
 	arp_sys_init();
 
 #ifdef CONFIG_SYSCTL
