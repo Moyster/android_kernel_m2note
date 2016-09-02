@@ -137,10 +137,12 @@
 #endif
 
 /* arp_project */
+#include <net/arp_project.h>
+
 extern bool arp_project_enable;
 extern bool print_arp_info;
 extern void arp_print_info(struct net_device *dev, struct arphdr *arp, int count);
-extern void arp_print_and_check_send(struct net_device *dev, struct sk_buff *skb);
+extern int arp_print_and_check_send(struct net_device *dev, struct sk_buff *skb);
 
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
@@ -2799,8 +2801,15 @@ int dev_queue_xmit(struct sk_buff *skb)
 	int rc = -ENOMEM;
 
 	/* arp_project */
-	if (arp_project_enable && skb->protocol == htons(ETH_P_ARP))
-		arp_print_and_check_send(dev, skb);
+	if (arp_project_enable && skb->protocol == htons(ETH_P_ARP)) {
+		rc = arp_print_and_check_send(dev, skb);
+		if (rc) {
+			printk(ARP_PROJECT"%s: Drop the packet..\n",
+				__func__);
+			kfree_skb(skb);
+			return rc;
+		}
+	}
 
 	skb_reset_mac_header(skb);
 
