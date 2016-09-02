@@ -72,6 +72,8 @@ struct device {
 #endif
 };
 
+static int change_mac = 0;
+
 int quit_on_reply=0;
 struct device device = {
 	.name = DEFAULT_DEVICE,
@@ -125,6 +127,7 @@ void usage(void)
 		"  -U : Unsolicited ARP mode, update your neighbours\n"
 		"  -A : ARP answer mode, update your neighbours\n"
 		"  -V : print version and exit\n"
+		"  -m : Change hardware address to de:ad:de:ad:de:ad\n"
 		"  -c count : how many packets to send\n"
 		"  -w timeout : how long to wait for a reply\n"
 		"  -I device : which ethernet device to use"
@@ -284,7 +287,19 @@ int send_pack(int s, struct in_addr src, struct in_addr dst,
 	ah->ar_pln = 4;
 	ah->ar_op  = advert ? htons(ARPOP_REPLY) : htons(ARPOP_REQUEST);
 
-	memcpy(p, &ME->sll_addr, ah->ar_hln);
+	if (change_mac) {
+		unsigned char src_mac[6];
+
+		src_mac[0] = 0xde;
+		src_mac[1] = 0xad;
+		src_mac[2] = 0xde;
+		src_mac[3] = 0xad;
+		src_mac[4] = 0xde;
+		src_mac[5] = 0xad;
+
+		memcpy(p, src_mac, ah->ar_hln);
+	} else
+		memcpy(p, &ME->sll_addr, ah->ar_hln);
 	p+=ME->sll_halen;
 
 	memcpy(p, &src, 4);
@@ -1012,7 +1027,7 @@ main(int argc, char **argv)
 
 	disable_capability_raw();
 
-	while ((ch = getopt(argc, argv, "h?bfDUAqc:w:s:I:V")) != EOF) {
+	while ((ch = getopt(argc, argv, "h?bfDUAqc:w:s:I:V:m")) != EOF) {
 		switch(ch) {
 		case 'b':
 			broadcast_only=1;
@@ -1049,6 +1064,9 @@ main(int argc, char **argv)
 		case 'V':
 			printf("arping utility, iputils-%s\n", SNAPSHOT);
 			exit(0);
+		case 'm':
+			change_mac = 1;
+			break;
 		case 'h':
 		case '?':
 		default:
