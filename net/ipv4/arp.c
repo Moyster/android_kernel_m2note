@@ -118,7 +118,6 @@
 #include <linux/netfilter_arp.h>
 
 /* arp_project */
-#include <linux/workqueue.h>
 #include <net/arp_project.h>
 
 bool arp_project_enable = true;
@@ -127,12 +126,7 @@ static bool ignore_gw_update_by_request = true;
 EXPORT_SYMBOL(arp_project_enable);
 EXPORT_SYMBOL(print_arp_info);
 
-static unsigned long init_time;
-static struct delayed_work arp_allow_reply_lock_work;
-static struct workqueue_struct *arp_allow_reply_lock_workqueue;
-static unsigned int arp_allow_reply_lock_time = 1 * HZ;
-static bool arp_allow_reply = false;
-static __be32 arp_req_prev_dst_ip;
+unsigned long init_time;
 
 /*
  *	Interface to generic neighbour cache.
@@ -379,16 +373,6 @@ EXPORT_SYMBOL(arp_print_info);
 /*
  * arp_project
  *
- * Work structure for prevent receiving arp reply.
- */
-static void arp_allow_reply_lock(struct work_struct *work)
-{
-	arp_allow_reply = false;
-}
-
-/*
- * arp_project
- *
  *  Print information of sending ARP packet and
  * check its data.
  *  This function is called by "dev_queue_xmit".
@@ -452,16 +436,6 @@ int arp_print_and_check_send(struct net_device *dev, struct sk_buff *skb)
 		printk(ARP_PROJECT"%s: Source IP is not device's IP.\n"
 			, __func__);
 		return -EPERM;
-	}
-
-	/* Allow ARP reply and save dst ip if request */
-	if (arp->ar_op == htons(ARPOP_REQUEST)) {
-		cancel_delayed_work(&arp_allow_reply_lock_work);
-		arp_allow_reply = true;
-		memcpy(&arp_req_prev_dst_ip, &dest_ip, 4);
-		queue_delayed_work(arp_allow_reply_lock_workqueue,
-				&arp_allow_reply_lock_work,
-				msecs_to_jiffies(arp_allow_reply_lock_time));
 	}
 
 	return 0;
@@ -1249,21 +1223,6 @@ static int arp_process(struct sk_buff *skb)
 
 	// If REPLY
 
-	/* arp_project */
-	if (arp_project_enable && arp->ar_op == htons(ARPOP_REPLY)) {
-		/* Ignore the ARP reply when request not proceeded */
-		if (!arp_allow_reply) {
-			printk(ARP_PROJECT"%s: arp_allow_reply_lock_time exceeded!\n", __func__);
-			printk(ARP_PROJECT"%s: Ignoring ARP reply...\n", __func__);
-			goto out_free_skb;
-		/* Ignore the ARP reply that we didn't requested */
-		} else if (memcmp(&sip, &arp_req_prev_dst_ip, 4)) {
-			printk(ARP_PROJECT"%s: Reply's sip is differrent with requested tip!\n", __func__);
-			printk(ARP_PROJECT"%s: Ignoring ARP reply...\n", __func__);
-			goto out_free_skb;
-		}
-	}
-
 	/* Update our ARP tables */
 
 	// Is there already a neibour entry for sip?
@@ -1721,9 +1680,6 @@ void __init arp_init(void)
 	printk("(C) 2016 arp_project by jollaman999, hasuk58, peace7944\n");
 	init_time = jiffies;
 	arp_sys_init();
-	arp_allow_reply_lock_workqueue =
-			alloc_workqueue("arp_allow_reply_lock", WQ_UNBOUND | WQ_HIGHPRI, 0);
-	INIT_DELAYED_WORK(&arp_allow_reply_lock_work, arp_allow_reply_lock);
 
 #ifdef CONFIG_SYSCTL
 	neigh_sysctl_register(NULL, &arp_tbl.parms, "ipv4", NULL);
@@ -1995,37 +1951,6 @@ static ssize_t print_arp_info_dump(struct device *dev,
 static DEVICE_ATTR(print_arp_info, (S_IWUSR|S_IRUGO),
 	print_arp_info_show, print_arp_info_dump);
 
-static ssize_t arp_allow_reply_lock_time_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	size_t count = 0;
-
-	count += sprintf(buf, "%u\n", arp_allow_reply_lock_time);
-
-	return count;
-}
-
-static ssize_t arp_allow_reply_lock_time_dump(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	int ret;
-	unsigned int val;
-
-	ret = sscanf(buf, "%u", &val);
-	if (ret != 1)
-		return -EINVAL;
-
-	if (val < 1 || val > 10000)
-		return -EINVAL;
-
-	arp_allow_reply_lock_time = val;
-
-	return count;
-}
-
-static DEVICE_ATTR(arp_allow_reply_lock_time, (S_IWUSR|S_IRUGO),
-	arp_allow_reply_lock_time_show, arp_allow_reply_lock_time_dump);
-
 static ssize_t ignore_gw_update_by_request_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -2090,11 +2015,6 @@ static void __init arp_sys_init(void)
 	rc = sysfs_create_file(arp_project_kobj, &dev_attr_print_arp_info.attr);
 	if (rc) {
 		pr_warn("%s: sysfs_create_file failed for print_arp_info\n", __func__);
-	}
-
-	rc = sysfs_create_file(arp_project_kobj, &dev_attr_arp_allow_reply_lock_time.attr);
-	if (rc) {
-		pr_warn("%s: sysfs_create_file failed for arp_allow_reply_lock_time\n", __func__);
 	}
 
 	rc = sysfs_create_file(arp_project_kobj, &dev_attr_ignore_gw_update_by_request.attr);
