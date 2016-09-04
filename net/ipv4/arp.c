@@ -362,6 +362,132 @@ void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
 }
 EXPORT_SYMBOL(arp_print_info);
 
+/*
+ * arp_project
+ *
+ *  Print information of sending ARP packet and
+ * check its data from user buffer.
+ *  This function is called by "sendto" sys call.
+ *  See "net/socket.c".
+ */
+int arp_print_and_check_send_user(const struct socket *sock,
+				  void __user *buff, size_t len,
+				  const struct sockaddr_ll *saddr)
+{
+	struct sock *sk = sock->sk;
+	struct arphdr *arp;
+	struct net_device *dev;
+	struct in_device *in_dev;
+	struct in_ifaddr **ifap = NULL;
+	struct in_ifaddr *ifa = NULL;
+	void *kdata = NULL;
+	unsigned char *arp_ptr;
+	__be32 sip;
+	bool ip_is_mine = false;
+	int err;
+
+	dev = dev_get_by_index(sock_net(sk), saddr->sll_ifindex);
+	if (!dev) {
+		printk(ARP_PROJECT"%s: Device not found.\n", __func__);
+		err = -ENODEV;
+		goto out;
+	}
+
+	if (dev->flags & IFF_NOARP) {
+		printk(ARP_PROJECT"%s: Device not support ARP.\n", __func__);
+		err = -EPERM;
+		goto put_dev;
+	}
+
+	if (len < arp_hdr_len(dev)) {
+		printk(ARP_PROJECT"%s: Length is too short.\n", __func__);
+		err = -EINVAL;
+		goto put_dev;
+	}
+
+	kdata = kzalloc(len, GFP_KERNEL);
+	if (!kdata) {
+		printk(ARP_PROJECT"%s: Failed to allocate kernel buffer.\n", __func__);
+		err = -ENOMEM;
+		goto put_dev;
+	}
+
+	if (copy_from_user(kdata, buff, len)) {
+		printk(ARP_PROJECT"%s: Failed to copy user data.\n", __func__);
+		err = -EFAULT;
+		goto put_dev;
+	}
+
+	arp = (struct arphdr *)kdata;
+
+	/* Print arp_ptr infos */
+	if (print_arp_info)
+		arp_print_info(dev, arp, 1);
+
+	arp_ptr = (unsigned char *)(arp + 1); // Next to the ARP Header (arp_hdr)
+
+	/* Check hardware address */
+	if (memcmp(dev->dev_addr, arp_ptr, dev->addr_len) != 0) {
+		err = -EPERM;
+		goto not_mine;
+	}
+
+	/* Get source IP address and destination IP address */
+	arp_ptr += (dev->addr_len); // Skip source hardware address
+	memcpy(&sip, arp_ptr, 4); // Get source IP address
+	arp_ptr += (4 + dev->addr_len); // Skip source IP and target hardware address
+
+	rcu_read_lock();
+	in_dev = __in_dev_get_rcu(dev);
+	if (in_dev == NULL) {
+		printk(ARP_PROJECT"%s: Failed to get in_device.\n", __func__);
+		rcu_read_unlock();
+		err = -EINVAL;
+		goto kfree;
+	}
+
+	/* Check IP address */
+	for (ifap = &in_dev->ifa_list; (ifa = *ifap) != NULL;
+	     ifap = &ifa->ifa_next) {
+		if (print_arp_info) {
+			int i;
+			unsigned char ip_tmp[4];
+
+			memcpy(&ip_tmp, &ifa->ifa_local, 4);
+			printk(ARP_PROJECT"%s: Device's ip addr: ",
+				__func__);
+			for (i = 0; i < 3; i++)
+				printk("%d.", ip_tmp[i]);
+			printk("%d\n", ip_tmp[i]);
+		}
+
+		if (memcmp(&sip, &ifa->ifa_local, 4) == 0) {
+			ip_is_mine = true;
+			break;
+		}
+	}
+	rcu_read_unlock();
+
+	if (!ip_is_mine) {
+		err = -EPERM;
+		goto not_mine;
+	}
+
+	err = 0;
+	goto kfree;
+
+not_mine:
+	printk(ARP_PROJECT"%s: Source MAC or Source IP is not yours.\n",
+			__func__);
+kfree:
+	kfree(kdata);
+put_dev:
+	dev_put(dev);
+out:
+	return err;
+}
+EXPORT_SYMBOL(arp_print_and_check_send_user);
+
 /* Create and send an arp packet. */
 static void arp_send_dst(int type, int ptype, __be32 dest_ip,
 			 struct net_device *dev, __be32 src_ip,
