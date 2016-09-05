@@ -123,6 +123,7 @@
 bool arp_project_enable = true;
 bool print_arp_info = false;
 static bool ignore_gw_update_by_request = true;
+static bool ignore_gw_update_by_reply = true;
 EXPORT_SYMBOL(arp_project_enable);
 EXPORT_SYMBOL(print_arp_info);
 
@@ -881,6 +882,7 @@ static int arp_detect_gw_update(struct net_device *dev, __be32 sip,
 	struct neighbour *n;
 	__be32 gw = ip_fib_get_gw(dev);
 	int found = 0;
+	int sum = 0;
 	int i;
 
 	if (!gw)
@@ -899,8 +901,23 @@ static int arp_detect_gw_update(struct net_device *dev, __be32 sip,
 	if (sip != gw)
 		return found;
 
-	n = __ipv4_neigh_lookup(dev, *(__force u32 *)&sip);
+	n = neigh_lookup(&arp_tbl, &sip, dev);
 	if (n) {
+		if (print_arp_info) {
+			printk(ARP_PROJECT"%s - Gateway HW: ", __func__);
+			for (i = 0; i < dev->addr_len - 1; i++)
+				printk("%02x:", n->ha[i]);
+			printk("%02x\n", n->ha[i]);
+		}
+
+		/* Zero check - Incomplete state */
+		for (i = 0; i < dev->addr_len; i++)
+			sum += n->ha[i];
+		if(!sum) {
+			neigh_release(n);
+			return found;
+		}
+
 		if (memcmp(n->ha, sha, dev->addr_len)) {
 			printk(ARP_PROJECT"%s: Gateway update attempt detected from ",
 									__func__);
@@ -1177,6 +1194,17 @@ static int arp_process(struct sk_buff *skb)
 	}
 
 	// If REPLY
+
+	if (arp_project_enable && ignore_gw_update_by_reply) {
+		if (arp->ar_op == htons(ARPOP_REPLY)) {
+			if (arp_detect_gw_update(dev, sip, sha)) {
+				printk(ARP_PROJECT"%s: "
+				       "Ignoring ARP reply...\n",
+				       __func__);
+				goto out_free_skb;
+			}
+		}
+	}
 
 	/* Update our ARP tables */
 
@@ -1945,6 +1973,46 @@ static ssize_t ignore_gw_update_by_request_dump(struct device *dev,
 static DEVICE_ATTR(ignore_gw_update_by_request, (S_IWUSR|S_IRUGO),
 	ignore_gw_update_by_request_show, ignore_gw_update_by_request_dump);
 
+static ssize_t ignore_gw_update_by_reply_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", ignore_gw_update_by_reply);
+
+	return count;
+}
+
+static ssize_t ignore_gw_update_by_reply_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (ignore_gw_update_by_reply)
+		val = 1;
+
+	if ((buf[0] == '0' || buf[0] == '1') && buf[1] == '\n') {
+		if (val != buf[0] - '0')
+			val = buf[0] - '0';
+		else
+			return count;
+	} else
+		return -EINVAL;
+
+	if (val) {
+		ignore_gw_update_by_reply = true;
+		printk(ARP_PROJECT"%s: Enabled\n", __func__);
+	} else {
+		ignore_gw_update_by_reply = false;
+		printk(ARP_PROJECT"%s: Disabled\n", __func__);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(ignore_gw_update_by_reply, (S_IWUSR|S_IRUGO),
+	ignore_gw_update_by_reply_show, ignore_gw_update_by_reply_dump);
+
 struct kobject *arp_project_kobj;
 
 static void __init arp_sys_init(void)
@@ -1974,6 +2042,11 @@ static void __init arp_sys_init(void)
 	rc = sysfs_create_file(arp_project_kobj, &dev_attr_ignore_gw_update_by_request.attr);
 	if (rc) {
 		pr_warn("%s: sysfs_create_file failed for ignore_gw_update_by_request\n", __func__);
+	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_ignore_gw_update_by_reply.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for ignore_gw_update_by_reply\n", __func__);
 	}
 }
 /********************** arp_project sysfs **********************/
