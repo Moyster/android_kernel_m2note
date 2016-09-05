@@ -126,6 +126,8 @@ static bool ignore_gw_update_by_request = true;
 EXPORT_SYMBOL(arp_project_enable);
 EXPORT_SYMBOL(print_arp_info);
 
+extern __be32 ip_fib_get_gw(struct net_device *dev);
+
 /*
  *	Interface to generic neighbour cache.
  */
@@ -868,17 +870,34 @@ EXPORT_SYMBOL(arp_xmit);
 /*
  * arp_project
  *
- * Find default gateway from route table and check attempt of gateway update.
+ * Find default gateway and check attempt of gateway update.
  *
- * 0 - Default gateway not found from route table or normal request.
+ * 0 - Default gateway not found or normal request.
  * 1 - Default gateway found and gateway update detected from other hardware address.
  */
-static int arp_find_gw(struct net_device *dev, __be32 sip,
-		       unsigned char *sha)
+static int arp_detect_gw_update(struct net_device *dev, __be32 sip,
+			       unsigned char *sha)
 {
 	struct neighbour *n;
+	__be32 gw = ip_fib_get_gw(dev);
 	int found = 0;
 	int i;
+
+	if (!gw)
+		return found;
+
+	if (print_arp_info) {
+		unsigned char ip_tmp[4];
+
+		memcpy(&ip_tmp, &gw, 4);
+		printk(ARP_PROJECT"%s - Gateway IP: ", __func__);
+		for (i = 0; i < 3; i++)
+			printk("%d.", ip_tmp[i]);
+		printk("%d\n", ip_tmp[i]);
+	}
+
+	if (sip != gw)
+		return found;
 
 	n = __ipv4_neigh_lookup(dev, *(__force u32 *)&sip);
 	if (n) {
@@ -1091,8 +1110,10 @@ static int arp_process(struct sk_buff *skb)
 				 * ignore updates when hardware address is different.
 				 */
 				if (arp_project_enable && ignore_gw_update_by_request) {
-					if (arp_find_gw(dev, sip, sha)) {
-						printk(ARP_PROJECT"%s: Ignoring ARP request...\n", __func__);
+					if (arp_detect_gw_update(dev, sip, sha)) {
+						printk(ARP_PROJECT"%s: "
+						       "Ignoring ARP request...\n",
+						       __func__);
 						goto out_free_skb;
 					}
 				}
@@ -1125,8 +1146,10 @@ static int arp_process(struct sk_buff *skb)
 				 * ignore updates when hardware address is different.
 				 */
 				if (arp_project_enable && ignore_gw_update_by_request) {
-					if (arp_find_gw(dev, sip, sha)) {
-						printk(ARP_PROJECT"%s: Ignoring ARP request...\n", __func__);
+					if (arp_detect_gw_update(dev, sip, sha)) {
+						printk(ARP_PROJECT"%s: "
+						       "Ignoring ARP request...\n",
+						       __func__);
 						goto out_free_skb;
 					}
 				}
