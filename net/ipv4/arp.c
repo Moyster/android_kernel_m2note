@@ -374,67 +374,23 @@ EXPORT_SYMBOL(arp_print_info);
  *  This function is called by "dev_queue_xmit".
  *  See "net/core/dev.c".
  */
-int arp_print_and_check_send(struct net_device *dev, struct sk_buff *skb)
+void arp_print_and_check_send(struct net_device *dev, struct sk_buff *skb)
 {
 	struct arphdr *arp;
 	unsigned char *arp_ptr;
-	__be32 src_ip, dest_ip;
-	struct in_device *in_dev;
-	struct in_ifaddr **ifap = NULL;
-	struct in_ifaddr *ifa = NULL;
-	bool ip_is_mine = false;
+	__be32 dest_ip;
 
 	/* Get ARP header */
 	arp = arp_hdr(skb);
 
+	/* Get destination IP address */
+	arp_ptr = (unsigned char *)(arp + 1);	// Next to the ARP Header (arp_hdr)
+	arp_ptr += (dev->addr_len * 2 + 4); // Skip source MAC, source IP and target MAC
+	memcpy(&dest_ip, arp_ptr, 4);
+
 	/* Print arp_ptr infos */
 	if (print_arp_info)
 		arp_print_info(dev, arp, 1);
-
-	arp_ptr = (unsigned char *)(arp + 1); // Next to the ARP Header (arp_hdr)
-
-	/* Check hardware address */
-	if (memcmp(dev->dev_addr, arp_ptr, dev->addr_len) != 0) {
-		printk(ARP_PROJECT"%s: Source MAC is not device's MAC.\n",
-			__func__);
-		return -EPERM;
-	}
-
-	/* Get source IP address and destination IP address */
-	arp_ptr += (dev->addr_len); // Skip source hardware address
-	memcpy(&src_ip, arp_ptr, 4); // Get source IP address
-	arp_ptr += (4 + dev->addr_len); // Skip source IP and target hardware address
-	memcpy(&dest_ip, arp_ptr, 4); // Get destination IP address
-
-	/* Check IP address */
-	in_dev = __in_dev_get_rtnl(dev);
-	for (ifap = &in_dev->ifa_list; (ifa = *ifap) != NULL;
-	     ifap = &ifa->ifa_next) {
-		if (print_arp_info) {
-			int i;
-			unsigned char ip_tmp[4];
-
-			memcpy(&ip_tmp, &ifa->ifa_local, 4);
-			printk(ARP_PROJECT"%s: Device's ip addr: ",
-				__func__);
-			for (i = 0; i < 3; i++)
-				printk("%d.", ip_tmp[i]);
-			printk("%d\n", ip_tmp[i]);
-		}
-
-		if (memcmp(&src_ip, &ifa->ifa_local, 4) == 0) {
-			ip_is_mine = true;
-			break;
-		}
-	}
-
-	if (!ip_is_mine) {
-		printk(ARP_PROJECT"%s: Source IP is not device's IP.\n"
-			, __func__);
-		return -EPERM;
-	}
-
-	return 0;
 }
 EXPORT_SYMBOL(arp_print_and_check_send);
 
