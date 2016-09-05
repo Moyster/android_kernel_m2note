@@ -305,8 +305,6 @@ static void arp_error_report(struct neighbour *neigh, struct sk_buff *skb)
 void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
 {
 	unsigned char *arp_ptr;
-	unsigned char *ha; // Hardware Address
-	unsigned char ip_tmp[4];
 	int i;
 
 	printk(ARP_PROJECT"%s - =============== ARP Info ===============\n",
@@ -331,41 +329,36 @@ void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
 	arp_ptr = (unsigned char *)(arp + 1);
 
 	/* Sender Hardware Address info */
-	ha = arp_ptr; // First of the ARP data - Sender HW address
 	printk(ARP_PROJECT"%s - Sender HW: ", __func__);
 	for (i = 0; i < dev->addr_len - 1; i++)
-		printk("%02x:", ha[i]);
-	printk("%02x\n", ha[i]);
+		printk("%02x:", arp_ptr[i]);
+	printk("%02x\n", arp_ptr[i]);
 
 	/* Move pointer */
 	arp_ptr += dev->addr_len;
 
-	/* Sender IP Address info */
-	memcpy(&ip_tmp, arp_ptr, 4);
 	printk(ARP_PROJECT"%s - Sender IP: ", __func__);
 	for (i = 0; i < 3; i++)
-		printk("%d.", ip_tmp[i]);
-	printk("%d\n", ip_tmp[i]);
+		printk("%d.", arp_ptr[i]);
+	printk("%d\n", arp_ptr[i]);
 
 	/* Move pointer */
 	arp_ptr += 4;
 
 	/* Target Hardware Address info */
-	ha = arp_ptr;
 	printk(ARP_PROJECT"%s - Target HW: ", __func__);
 	for (i = 0; i < dev->addr_len - 1; i++)
-		printk("%02x:", ha[i]);
-	printk("%02x\n", ha[i]);
+		printk("%02x:", arp_ptr[i]);
+	printk("%02x\n", arp_ptr[i]);
 
 	/* Move pointer */
 	arp_ptr += dev->addr_len;
 
 	/* Target IP Address info */
-	memcpy(&ip_tmp, arp_ptr, 4);
 	printk(ARP_PROJECT"%s - Target IP: ", __func__);
 	for (i = 0; i < 3; i++)
-		printk("%d.", ip_tmp[i]);
-	printk("%d\n", ip_tmp[i]);
+		printk("%d.", arp_ptr[i]);
+	printk("%d\n", arp_ptr[i]);
 }
 EXPORT_SYMBOL(arp_print_info);
 
