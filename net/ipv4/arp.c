@@ -386,15 +386,12 @@ static void arp_send_dst(int type, int ptype, __be32 dest_ip,
 	if (!skb)
 		return;
 
-	/* arp_project */
-	if (arp_project_enable) {
+	/* arp_project - Print arp_ptr infos */
+	if (arp_project_enable && print_arp_info) {
 		struct arphdr *arp;
 
-		/* Get ARP header */
 		arp = arp_hdr(skb);
-		/* Print arp_ptr infos */
-		if (print_arp_info)
-			arp_print_info(dev, arp, 1);
+		arp_print_info(dev, arp, 1);
 	}
 
 	if (oskb)
