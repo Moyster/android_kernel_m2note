@@ -415,7 +415,7 @@ int arp_print_and_check_send_user(const struct socket *sock,
 	if (copy_from_user(kdata, buff, len)) {
 		printk(ARP_PROJECT"%s: Failed to copy user data.\n", __func__);
 		err = -EFAULT;
-		goto put_dev;
+		goto kfree;
 	}
 
 	arp = (struct arphdr *)kdata;
