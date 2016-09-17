@@ -106,14 +106,6 @@
 #include <linux/sockios.h>
 #include <linux/atalk.h>
 
-/* arp_project */
-#include <net/arp_project.h>
-#include <uapi/linux/if_arp.h>
-extern bool arp_project_enable;
-extern int arp_print_and_check_send_user(const struct socket *sock,
-					 struct iovec *iov, size_t len,
-					 const struct sockaddr_ll *saddr);
-
 static BLOCKING_NOTIFIER_HEAD(sockev_notifier_list);
 
 static int sock_no_open(struct inode *irrelevant, struct file *dontcare);
@@ -1880,18 +1872,6 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len,
 			goto out_put;
 		msg.msg_name = (struct sockaddr *)&address;
 		msg.msg_namelen = addr_len;
-
-		/* arp_project */
-		if (arp_project_enable &&
-		    ((struct sockaddr_ll *)&address)->sll_protocol == htons(ETH_P_ARP)) {
-			err = arp_print_and_check_send_user(sock, buff, len,
-						(struct sockaddr_ll *)&address);
-			if (err) {
-				printk(ARP_PROJECT"%s: Drop the packet..\n",
-					__func__);
-				goto out_put;
-			}
-		}
 	}
 	if (sock->file->f_flags & O_NONBLOCK)
 		flags |= MSG_DONTWAIT;
