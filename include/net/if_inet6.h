@@ -196,6 +196,7 @@ struct inet6_dev {
 	struct ipv6_devstat	stats;
 
 	struct timer_list	rs_timer;
+	__s32			rs_interval;	/* in jiffies */
 	__u8			rs_probes;
 
 	unsigned long		tstamp; /* ipv6InterfaceTable update timestamp */
