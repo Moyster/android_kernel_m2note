@@ -966,7 +966,7 @@ static int c_show(struct seq_file *m, void *v)
 		seq_printf(m, "Processor\t: %s rev %d (%s)\n",
 			   cpu_name, read_cpuid_id() & 15, elf_platform);
 
-	for_each_online_cpu(i) {
+	for_each_possible_cpu(i) {
 		/*
 		 * glibc reads /proc/cpuinfo to determine the number of
 		 * online processors, looking for lines beginning with
