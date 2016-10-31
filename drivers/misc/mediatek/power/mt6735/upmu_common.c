@@ -2721,10 +2721,10 @@ const PMU_FLAG_TABLE_ENTRY pmu_flags_table[]=
 };
 
 
-kal_uint16 mt6328_set_register_value(PMU_FLAGS_LIST_ENUM flagname,kal_uint32 val)
+unsigned short mt6328_set_register_value(PMU_FLAGS_LIST_ENUM flagname, unsigned int val)
 {
 	const PMU_FLAG_TABLE_ENTRY *pFlag=&pmu_flags_table[flagname];
-  	kal_uint32 ret=0;
+	unsigned int ret=0;
 
 
 	if (pFlag->flagname!=flagname)
@@ -2736,9 +2736,9 @@ kal_uint16 mt6328_set_register_value(PMU_FLAGS_LIST_ENUM flagname,kal_uint32 val
   	pmic_lock();
 
 	ret=pmic_config_interface( (pFlag->offset),
-	                         (kal_uint32)(val),
-	                         (kal_uint32)(pFlag->mask),
-	                         (kal_uint32)(pFlag->shift)
+	                         (unsigned int)(val),
+	                         (unsigned int)(pFlag->mask),
+	                         (unsigned int)(pFlag->shift)
 	                         );	
   	pmic_unlock();
 
@@ -2746,38 +2746,38 @@ kal_uint16 mt6328_set_register_value(PMU_FLAGS_LIST_ENUM flagname,kal_uint32 val
 }
 
 
-kal_uint16 mt6328_get_register_value(PMU_FLAGS_LIST_ENUM flagname)
+unsigned short mt6328_get_register_value(PMU_FLAGS_LIST_ENUM flagname)
 {
 	const PMU_FLAG_TABLE_ENTRY *pFlag=&pmu_flags_table[flagname];
-	U32 val;
-	kal_uint32 ret;
+	unsigned int val;
+	unsigned int ret;
 
-	ret=pmic_read_interface((U32)pFlag->offset, &val, (U32)(pFlag->mask),  (U32)(pFlag->shift));
+	ret=pmic_read_interface((unsigned int)pFlag->offset, &val, (unsigned int)(pFlag->mask), (unsigned int)(pFlag->shift));
 
 	return val;
 }
 
 
-kal_uint16 pmic_set_register_value(PMU_FLAGS_LIST_ENUM flagname,kal_uint32 val)
+unsigned short pmic_set_register_value(PMU_FLAGS_LIST_ENUM flagname, unsigned int val)
 {
 	return mt6328_set_register_value(flagname, val);
 }
 
 
-kal_uint16 pmic_get_register_value(PMU_FLAGS_LIST_ENUM flagname)
+unsigned short pmic_get_register_value(PMU_FLAGS_LIST_ENUM flagname)
 {
 	return mt6328_get_register_value(flagname);
 }
 
 
 
-kal_uint16 bc11_set_register_value(PMU_FLAGS_LIST_ENUM flagname,kal_uint32 val)
+unsigned short bc11_set_register_value(PMU_FLAGS_LIST_ENUM flagname, unsigned int val)
 {
 	return mt6328_set_register_value(flagname, val);
 }
 
 
-kal_uint16 bc11_get_register_value(PMU_FLAGS_LIST_ENUM flagname)
+unsigned short bc11_get_register_value(PMU_FLAGS_LIST_ENUM flagname)
 {
 	return mt6328_get_register_value(flagname);
 }

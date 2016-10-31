@@ -1,5 +1,0 @@
- OPTIONAL_DIRS= \
-    ehpi \
-    sdio 
-    
-

@@ -112,12 +112,6 @@ void mt_power_off(void)
 /*=======================================================================*/
 /* Board Specific Devices                                                */
 /*=======================================================================*/
-/*GPS driver*/
-/*FIXME: remove mt3326 notation */
-struct mt3326_gps_hardware mt3326_gps_hw = {
-    .ext_power_on =  NULL,
-    .ext_power_off = NULL,
-};
 
 #if defined(CONFIG_MTK_WCN_CMB_SDIO_SLOT)
 static void mtk_wcn_cmb_sdio_enable_eirq(void)

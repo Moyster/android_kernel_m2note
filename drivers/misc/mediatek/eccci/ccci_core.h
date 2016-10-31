@@ -546,7 +546,7 @@ static inline int ccci_port_recv_skb(struct ccci_modem *md, struct sk_buff *skb)
 			ret = port->ops->recv_skb(port, skb);
             }else{
                 CCCI_ERR_MSG(md->index, CORE, "port->ops->recv_skb is null\n");
-                ret == -CCCI_ERR_CHANNEL_NUM_MIS_MATCH;
+                ret = -CCCI_ERR_CHANNEL_NUM_MIS_MATCH;
                 goto err_exit;
             }
 #ifdef FEATURE_SEQ_CHECK_EN
@@ -615,7 +615,7 @@ static inline int ccci_port_recv_request(struct ccci_modem *md, struct ccci_requ
 			ret = port->ops->recv_request(port, req);
             }else{
                 CCCI_ERR_MSG(md->index, CORE, "port->ops->recv_request is null\n");
-                ret == -CCCI_ERR_CHANNEL_NUM_MIS_MATCH;
+                ret = -CCCI_ERR_CHANNEL_NUM_MIS_MATCH;
                 goto err_exit;
             }
 

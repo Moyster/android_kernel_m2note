@@ -2,8 +2,6 @@
 #ifndef _MT_PMIC_LDO_H_
 #define _MT_PMIC_LDO_H_
 
-#include <mach/mt_typedefs.h>
-
 #define MAX_DEVICE      32
 #define MAX_MOD_NAME    32
 
@@ -154,8 +152,8 @@ typedef enum MT65XX_POWER_VOL_TAG
 
 
 typedef struct { 
-    DWORD dwPowerCount; 
-    BOOL bDefault_on;
+    unsigned long dwPowerCount; 
+    bool bDefault_on;
     char name[MAX_MOD_NAME];        
     char mod_name[MAX_DEVICE][MAX_MOD_NAME];    
 } DEVICE_POWER;

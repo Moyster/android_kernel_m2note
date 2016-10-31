@@ -402,21 +402,6 @@ config MTK_FB_EVB_USE_HVGA_LCM # FB_MT6516_EVB_USE_HVGA_LCM
 	---help---
 	  Use MagnaChip TA7601 HVGA LCM on EVB
 
-menuconfig GPS
-	tristate "GPS drivers"
-	default y
-	---help---
-	  Say Y here for supporting GPS.
-
-if GPS
-config MTK_GPS # MT6516_GPS --> TODO should change to use modulized settings!
-	tristate "MediaTek 3326 GPS driver"
-	default y
-	---help---
-	  MT3326 GPS driver
-endif # GPS
-
-
 menuconfig MTK_NFC
 	tristate "NFC drivers"
 	default n
