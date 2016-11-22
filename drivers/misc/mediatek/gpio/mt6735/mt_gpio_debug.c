@@ -686,7 +686,7 @@ ssize_t mt_gpio_show_pin(struct device* dev,
 {
     return mt_gpio_dump_regs(buf, PAGE_SIZE);
 }
-void mt_get_md_gpio_debug(char *str);
+
 /*---------------------------------------------------------------------------*/
 
 
@@ -704,7 +704,7 @@ ssize_t mt_gpio_store_pin(struct device* dev, struct device_attribute *attr,
 #endif
     int mode, pullsel, dout, pullen, dir, ies, smt;
     u32 num,src,div;
-	//char md_str[128]="GPIO_MD_TEST";
+
     //struct mt_gpio_obj *obj = (struct mt_gpio_obj*)dev_get_drvdata(dev);    
     if (!strncmp(buf, "-h", 2)) {
         GPIOMSG("cat pin  #show all pin setting\n");
@@ -796,10 +796,6 @@ ssize_t mt_gpio_store_pin(struct device* dev, struct device_attribute *attr,
     } else if (!strncmp(buf, "tt", 2)) {
 		//GPIOMSG("gpio reg test for next chip!\n");
 		//mt_reg_test();
-    } else if (!strncmp(buf, "-md", 3)) {
-	//buf +=3;
-	//sscanf(buf,"%s",md_str);
-	//mt_get_md_gpio_debug(md_str);
     } else if (!strncmp(buf, "-k", 2)) {
         buf += 2;
         if (!strncmp(buf, "s", 1) && (3 == sscanf(buf+1, "%d %d %d", &num, &src, &div)))
@@ -955,17 +951,3 @@ int mt_get_md_gpio(char * gpio_name, int len)
 	GPIOERR("Modem gpio name can't match!!!\n");
 	return -1;
 }
-
-void mt_get_md_gpio_debug(char * str)
-{
-	if(strcmp(str,"ALL")==0){
-		int i;
-		for(i=0;i<ARRAY_SIZE(mt_gpio_info);i++){
-			GPIOMSG("GPIO number=%d,%s\n", mt_gpio_info[i].num, mt_gpio_info[i].name);
-		}
-	}else{
-		GPIOMSG("GPIO number=%d,%s\n",mt_get_md_gpio(str,strlen(str)),str);
-	}
-	return;
-}
-
