@@ -329,6 +329,9 @@ struct _mmc_csd {
 #define EXT_CSD_POWER_OFF_LONG_TIME	247	/* RO */
 #define EXT_CSD_GENERIC_CMD6_TIME	248	/* RO */
 #define EXT_CSD_CACHE_SIZE		249	/* RO, 4 bytes */
+#define EXT_CSD_PRE_EOL_INFO        267 /* RO */
+#define EXT_CSD_DEVICE_LIFE_TIME_EST_TYP_A 268 /* RO */
+#define EXT_CSD_DEVICE_LIFE_TIME_EST_TYP_B 269 /* RO */
 #define EXT_CSD_NUM_OF_FW_SEC_PROG	302	/* RO */
 #define EXT_CSD_FFU_ARG			487	/* RO, 4 bytes */
 #define EXT_CSD_OPERATION_CODE_TIMEOUT	491	/* RO */
