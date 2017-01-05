@@ -206,6 +206,7 @@ static ssize_t snd_info_entry_read(struct file *file, char __user *buffer,
 	struct snd_info_buffer *buf;
 	size_t size = 0;
 	loff_t pos;
+	unsigned long realloc_size;
 
 	data = file->private_data;
 	if (snd_BUG_ON(!data))
@@ -213,7 +214,8 @@ static ssize_t snd_info_entry_read(struct file *file, char __user *buffer,
 	pos = *offset;
 	if (pos < 0 || (long) pos != pos || (ssize_t) count < 0)
 		return -EIO;
-	if ((unsigned long) pos + (unsigned long) count < (unsigned long) pos)
+	realloc_size = (unsigned long) pos + (unsigned long) count;
+	if (realloc_size < (unsigned long) pos || realloc_size > UINT_MAX)
 		return -EIO;
 	entry = data->entry;
 	switch (entry->content) {
