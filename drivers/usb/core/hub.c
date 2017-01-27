@@ -3701,7 +3701,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	struct usb_port *port_dev = hub->ports[udev->portnum  - 1];
 	int		port1 = udev->portnum;
 	int		status;
-	u16		portchange, portstatus;
+	u16		portchange = 0, portstatus = 0;
 
 #if defined(CONFIG_USB_MTK_OTG) && defined(CONFIG_USBIF_COMPLIANCE)
 	status = hub_port_status(hub, port1, &portstatus, &portchange);
