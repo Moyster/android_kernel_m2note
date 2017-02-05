@@ -14,9 +14,9 @@ HOW TO COMPILE
 
 Make sure your device tree uses :  
 ```
-TARGET_KERNEL_CONFIG := cmXX_m2note_defconfig
+TARGET_KERNEL_CONFIG := los14_m2note_defconfig
 ```
-(where "XX" = cm version, currently supported : 12 / 13 / 14)  
+PS: this branch is only for Nougat, see branch "master" for LP/MM support  
 
 From within the Android Sources you want to build, do :  
 
