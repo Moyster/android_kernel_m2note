@@ -3614,7 +3614,7 @@ retry:
 			if (put_user(thread->return_error2, (uint32_t __user *)ptr))
 				return -EFAULT;
 			ptr += sizeof(uint32_t);
-			pr_err("read put err2 %u to user %p, thread error %u:%u\n",
+			pr_err("read put err2 %u to user %pK, thread error %u:%u\n",
 					thread->return_error2, ptr, thread->return_error, thread->return_error2);
 			binder_stat_br(proc, thread, thread->return_error2);
 			if (ptr == end)
@@ -3624,7 +3624,7 @@ retry:
 		if (put_user(thread->return_error, (uint32_t __user *)ptr))
 			return -EFAULT;
 		ptr += sizeof(uint32_t);
-		pr_err("read put err %u to user %p, thread error %u:%u\n",
+		pr_err("read put err %u to user %pK, thread error %u:%u\n",
 					thread->return_error, ptr, thread->return_error, thread->return_error2);
 		binder_stat_br(proc, thread, thread->return_error);
 		thread->return_error = BR_OK;
@@ -4111,7 +4111,7 @@ static int binder_free_thread(struct binder_proc *proc,
 			     (t->to_thread == thread) ? "in" : "out");
 
 #ifdef MTK_BINDER_DEBUG
-		pr_err("%d: %p from %d:%d to %d:%d code %x flags %x "
+		pr_err("%d: %pK from %d:%d to %d:%d code %x flags %x "
 				"pri %ld r%d "
 #ifdef BINDER_MONITOR
 				"start %lu.%06lu"
@@ -4231,11 +4231,11 @@ static int binder_ioctl_write_read(struct file *filp,
                 unsigned int *p;
                 printk(KERN_ERR "binder: "
                     "thread->proc != proc\n");
-                printk(KERN_ERR "binder: thread %p\n",
+                printk(KERN_ERR "binder: thread %pK\n",
                         thread);
                 p = (unsigned int *)thread - 32;
                 for (i = -4; i <= 3; i++, p+=8) {
-                    printk(KERN_ERR "%p %08x %08x "
+                    printk(KERN_ERR "%pK %08x %08x "
                             "%08x %08x  %08x %08x "
                             "%08x %08x\n",
                             p, *(p), *(p+1), *(p+2),
@@ -4243,21 +4243,21 @@ static int binder_ioctl_write_read(struct file *filp,
                             *(p+6), *(p+7));
                 }
                 printk(KERN_ERR "binder: thread->proc "
-                        "%p\n", thread->proc);
+                        "%pK\n", thread->proc);
                 p = (unsigned int *)thread->proc - 32;
                 for (i = -4; i <= 5; i++, p+=8) {
-                    printk(KERN_ERR "%p %08x %08x "
+                    printk(KERN_ERR "%pK %08x %08x "
                             "%08x %08x  %08x %08x "
                             "%08x %08x\n",
                             p, *(p), *(p+1), *(p+2),
                             *(p+3), *(p+4), *(p+5),
                             *(p+6), *(p+7));
                 }
-                printk(KERN_ERR "binder: proc %p\n",
+                printk(KERN_ERR "binder: proc %pK\n",
                         proc);
                 p = (unsigned int *)proc - 32;
                 for (i = -4; i <= 5; i++, p+=8) {
-                    printk(KERN_ERR "%p %08x %08x "
+                    printk(KERN_ERR "%pK %08x %08x "
                             "%08x %08x  %08x %08x "
                             "%08x %08x\n",
                             p, *(p), *(p+1), *(p+2),
@@ -4767,7 +4767,7 @@ static void binder_deferred_release(struct binder_proc *proc)
 			       proc->pid, t->debug_id);
 			/*BUG();*/
 #ifdef MTK_BINDER_DEBUG
-			pr_err("%d: %p from %d:%d to %d:%d code %x flags %x "
+			pr_err("%d: %pK from %d:%d to %d:%d code %x flags %x "
 					"pri %ld r%d "
 #ifdef BINDER_MONITOR
 					"start %lu.%06lu"
@@ -5833,11 +5833,11 @@ static int binder_timeout_log_show(struct seq_file *m, void *unused)
 		int j;
 
 		pr_alert("timeout log index error, "
-				  "log %p latest %d next %d end_idx %d\n",
+				  "log %pK latest %d next %d end_idx %d\n",
 				  log, latest, log->next, end_idx);
 		for (j = -4; j <= 3; j++) {
 			unsigned int *tmp = (unsigned int *)log + (j * 8);
-			pr_alert("0x%p %08x %08x %08x %08x  "
+			pr_alert("0x%pK %08x %08x %08x %08x  "
 					  "%08x %08x %08x %08x\n",
 					  tmp,
 					  *tmp, *(tmp + 1), *(tmp + 2), *(tmp + 3),
