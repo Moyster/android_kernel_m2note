@@ -261,10 +261,6 @@ mtk_cfg80211_del_station (
     u8 *mac
     );
 
-#ifdef CONFIG_NL80211_FASTSCAN
-int meizu_cfg80211_fastscan_cmd(struct wiphy *,void *,int);
-#endif
-
 int 
 mtk_cfg80211_scan (
     struct wiphy *wiphy,

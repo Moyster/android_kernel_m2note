@@ -892,9 +892,6 @@ static struct cfg80211_ops mtk_wlan_ops = {
     #ifdef CONFIG_NL80211_TESTMODE
     .testmode_cmd               = mtk_cfg80211_testmode_cmd,
     #endif
-	#ifdef CONFIG_NL80211_FASTSCAN
-	.fastscan_cmd                  = meizu_cfg80211_fastscan_cmd,
-	#endif
 #if (CFG_SUPPORT_TDLS == 1)
 	.tdls_mgmt					= TdlsexCfg80211TdlsMgmt,
 	.tdls_oper					= TdlsexCfg80211TdlsOper,

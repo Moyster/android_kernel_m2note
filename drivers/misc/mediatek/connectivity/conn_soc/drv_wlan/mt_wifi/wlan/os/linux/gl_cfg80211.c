@@ -739,36 +739,6 @@ mtk_cfg80211_change_station (
 	return 0;
 }
 
-#ifdef CONFIG_NL80211_FASTSCAN
-struct prio_ssid {
-char ssid[32];
-};
-
-int meizu_cfg80211_fastscan_cmd(struct wiphy *wiphy,void * data,int len)
-{
-	P_GLUE_INFO_T prGlueInfo = NULL;
-	UINT_32 i;
-	struct prio_ssid * pssid = (struct prio_ssid *)data;
-	int num_ssid ;
-
-	prGlueInfo = (P_GLUE_INFO_T) wiphy_priv(wiphy);
-	ASSERT(prGlueInfo);
-
-	num_ssid = len/sizeof(*pssid);
-	printk("%s :prio_ssid num[%d]\n",__func__,num_ssid);
-
-	if(num_ssid<=0 || num_ssid>10)
-		return -1 ;
-
-	for(i=0;num_ssid;num_ssid--,i++){
-		printk("%s: prio_ssid[%s]\n",__func__,pssid[num_ssid-1].ssid);
-		strncpy(&prGlueInfo->prio_ssid[i][0],pssid[num_ssid-1].ssid,32);
-	}
-
-	return 0;
-}
-#endif //end #ifdef CONFIG_NL80211_FASTSCAN
-
 /*----------------------------------------------------------------------------*/
 /*!
  * @brief This routine is responsible for adding a station information
@@ -943,10 +913,6 @@ mtk_cfg80211_scan (
 
     prGlueInfo = (P_GLUE_INFO_T) wiphy_priv(wiphy);
     ASSERT(prGlueInfo);
-
-#ifdef CONFIG_NL80211_FASTSCAN
-	printk("%s:receive scan command from user space\n",__func__);
-#endif
 
 	DBGLOG(REQ, INFO, ("mtk_cfg80211_scan\n"));
     kalMemZero(&rScanRequest, sizeof(PARAM_SCAN_REQUEST_EXT_T));

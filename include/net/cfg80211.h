@@ -2095,9 +2095,6 @@ struct cfg80211_ops {
 
 	int	(*set_monitor_channel)(struct wiphy *wiphy,
 				       struct cfg80211_chan_def *chandef);
-#ifdef CONFIG_NL80211_FASTSCAN
-   int (*fastscan_cmd)(struct wiphy*,void *,int);
-#endif
 	int	(*scan)(struct wiphy *wiphy,
 			struct cfg80211_scan_request *request);
 

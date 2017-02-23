@@ -6488,25 +6488,6 @@ __cfg80211_alloc_vendor_skb(struct cfg80211_registered_device *rdev,
 	return NULL;
 }
 
-#ifdef CONFIG_NL80211_FASTSCAN
-static int nl80211_fastscan_do(struct sk_buff *skb, struct genl_info *info)
-{
-	struct cfg80211_registered_device *rdev = info->user_ptr[0];
-	int err;
-
-	if (!info->attrs[NL80211_ATTR_FASTSCAN])
-		return -EINVAL;
-
-	err = -EOPNOTSUPP;
-	if (rdev&&rdev->ops->fastscan_cmd) {
-		err = rdev->ops->fastscan_cmd(&rdev->wiphy,nla_data(info->attrs[NL80211_ATTR_FASTSCAN]),
-				nla_len(info->attrs[NL80211_ATTR_FASTSCAN]));
-	}
-
-	return err;
-}
-#endif
-
 #ifdef CONFIG_NL80211_TESTMODE
 static struct genl_multicast_group nl80211_testmode_mcgrp = {
 	.name = "testmode",
@@ -8876,15 +8857,6 @@ static struct genl_ops nl80211_ops[] = {
 				  NL80211_FLAG_NEED_RTNL,
 	},
 #endif
-#ifdef CONFIG_NL80211_FASTSCAN
-		{
-			.cmd = NL80211_CMD_FAST_SCAN,
-			.doit = nl80211_fastscan_do,
-			.policy = nl80211_policy,
-			.internal_flags = NL80211_FLAG_NEED_WIPHY,
-		},
-#endif
-
 	{
 		.cmd = NL80211_CMD_CONNECT,
 		.doit = nl80211_connect,
