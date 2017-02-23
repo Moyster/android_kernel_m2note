@@ -907,10 +907,6 @@ struct _GLUE_INFO_T {
     UINT_16                 u2WSCIELen;
     UINT_8                  aucWSCAssocInfoIE[200]; /*for Assoc req*/
     UINT_16                 u2WSCAssocInfoIELen;
-#ifdef CONFIG_NL80211_FASTSCAN
-	char                    prio_ssid[10][32];
-	int                     first_time_scan;
-#endif
 
 #if CFG_SUPPORT_HOTSPOT_2_0
     UINT_8                  aucHS20AssocInfoIE[200]; /*for Assoc req*/

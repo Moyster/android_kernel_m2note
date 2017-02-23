@@ -712,10 +712,6 @@ scnInit (
     prScanInfo = &(prAdapter->rWifiVar.rScanInfo);
     pucBSSBuff = &prScanInfo->aucScanBuffer[0];
 
-#ifdef CONFIG_NL80211_FASTSCAN
-    prAdapter->prGlueInfo->first_time_scan = 0 ;
-#endif
-
     DBGLOG(SCN, INFO, ("->scnInit()\n"));
 
     //4 <1> Reset STATE and Message List
@@ -781,10 +777,6 @@ scnUninit (
     prScanInfo->eCurrentState = SCAN_STATE_IDLE;
 
     prScanInfo->rLastScanCompletedTime = (OS_SYSTIME)0;
-
-#ifdef CONFIG_NL80211_FASTSCAN
-    prAdapter->prGlueInfo->first_time_scan = 0;
-#endif
 
     /* NOTE(Kevin): Check rPendingMsgList ? */
 
@@ -2177,34 +2169,6 @@ scanAddToBssDesc (
     return prBssDesc;
 }
 
-#ifdef CONFIG_NL80211_FASTSCAN
-static int is_target(P_GLUE_INFO_T prGlueInfo,const char * ssid)
-{
-	int i = 0 ;
-
-	for(i=0;i<10;i++){
-		if((prGlueInfo->prio_ssid[i][0])&& \
-			(!strncmp(&prGlueInfo->prio_ssid[i][0],ssid,32))){
-			printk("%s:target ssid[%s]\n",__func__,&prGlueInfo->prio_ssid[i][0]);
-			return 1 ;
-		}
-	}
-
-	return 0;
-}
-
-int meizu_target_ssid(P_ADAPTER_T prAdapter)
-{
-	int ret = 0 ;
-
-	//printk("%s_%d[%d]\n",__func__,__LINE__,scan_target);
-	ret = (prAdapter->prGlueInfo->first_time_scan==1);
-	if(1==ret)
-		prAdapter->prGlueInfo->first_time_scan++;
-	return ret;
-}
-#endif //end #ifdef CONFIG_NL80211_FASTSCAN
-
 /*----------------------------------------------------------------------------*/
 /*!
 * @brief Convert the Beacon or ProbeResp Frame in SW_RFB_T to scan result for query
@@ -2303,13 +2267,6 @@ scanAddScanResult (
 				prBssDesc->ucChannelNum,
 				prBssDesc->ucRCPI, RCPI_TO_dBm(prBssDesc->ucRCPI)));
 	#endif
-
-#ifdef CONFIG_NL80211_FASTSCAN
-	if((!prAdapter->prGlueInfo->first_time_scan)&&is_target(prAdapter->prGlueInfo,prBssDesc->aucSSID)){
-		prAdapter->prGlueInfo->first_time_scan ++ ;
-		printk("%s_%d,set scan_ssid\n",__func__,__LINE__);
-	}
-#endif //end #ifdef CONFIG_NL80211_FASTSCAN
 
 #if (CFG_SUPPORT_TDLS == 1)
 {

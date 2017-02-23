@@ -935,10 +935,6 @@ scanRemoveBssDescByBandAndNetwork (
     IN ENUM_NETWORK_TYPE_INDEX_T eNetTypeIndex
     );
 
-#ifdef CONFIG_NL80211_FASTSCAN
-int meizu_target_ssid(P_ADAPTER_T prAdapter);
-#endif
-
 /* BSS-DESC State Change */
 VOID
 scanRemoveConnFlagOfBssDescByBssid (

@@ -2035,18 +2035,6 @@ wlanIST (
 	/* CONNSYS can decide to sleep */
     RECLAIM_POWER_CONTROL_TO_PM(prAdapter, FALSE);
 
-#ifdef CONFIG_NL80211_FASTSCAN
-	if(meizu_target_ssid(prAdapter)){
-		struct cfg80211_scan_request *request ;
-		if(!prAdapter->prGlueInfo->prScanRequest)
-		     return ;
-		request = prAdapter->prGlueInfo->prScanRequest;
-		prAdapter->prGlueInfo->prScanRequest = NULL ;
-		cfg80211_scan_done(request,0);
-		printk("%s:report scan result\n",__func__);
-	}
-#endif //end #ifdef CONFIG_NL80211_FASTSCAN
-
     return;
 }
 
