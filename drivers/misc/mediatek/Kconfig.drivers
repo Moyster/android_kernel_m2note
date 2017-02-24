@@ -479,31 +479,6 @@ config MTK_WFD_SUPPORT
 	help
 	  Wi-Fi Display Switch
 
-config MTK_FM
-	bool "MediaTek FM Chip Support"
-	default n
-
-config MTK_FM_SUPPORT
-	bool "MTK_FM_SUPPORT"
-	help
-	  The root switch of Android FM, if  "no", all features(RX&TX) of FM
-	  will be removed from android system
-
-config MTK_FM_CHIP
-	string "MTK_FM_CHIP"
-	depends on MTK_FM_SUPPORT
-	default "MT6620_FM" if MTK_COMBO_CHIP_MT6620
-	default "MT6630_FM" if MTK_COMBO_CHIP_MT6630
-	help
-	   decide which FM radio chip to use: e.g.MT6620_FM, MT6628_FM
-
-config MTK_FM_50KHZ_SUPPORT
-	bool "MTK_FM_50KHZ_SUPPORT"
-	depends on MTK_FM_SUPPORT
-	help
-	  The feature option is to define if we support FM 50KHz step
-	  tune/seek/scan functions
-
 config MTK_MERGE_INTERFACE_SUPPORT
 	bool "MTK_MERGE_INTERFACE_SUPPORT"
 
