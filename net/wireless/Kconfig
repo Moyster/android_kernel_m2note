@@ -44,13 +44,6 @@ config NL80211_TESTMODE
 
 	  Say N.
 
-config NL80211_FASTSCAN
-       bool "meizu support fast scan"
-       depends on CFG80211
-       help
-	  Say Y if you want to scan AP fastly when you open wifi and connect
-	  AP that you have saved before.
-
 config CFG80211_DEVELOPER_WARNINGS
 	bool "enable developer warnings"
 	depends on CFG80211
