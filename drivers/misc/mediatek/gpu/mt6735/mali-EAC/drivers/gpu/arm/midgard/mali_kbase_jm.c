@@ -31,8 +31,6 @@
 
 #include "mali_kbase_jm.h"
 
-extern void smi_dumpDebugMsg(void);
-
 #define beenthere(kctx, f, a...)  dev_dbg(kctx->kbdev->dev, "%s:" f, __func__, ##a)
 
 #ifdef CONFIG_MALI_DEBUG_SHADER_SPLIT_FS
@@ -1225,8 +1223,6 @@ void kbasep_reset_timeout_worker(struct work_struct *data)
 	dev_err(kbdev->dev, "Resetting GPU (allowing up to %d ms)", RESET_TIMEOUT);
 
 	spin_lock_irqsave(&kbdev->hwcnt.lock, flags);
-	
-	smi_dumpDebugMsg();
 
 	if (kbdev->hwcnt.state == KBASE_INSTR_STATE_RESETTING) {	/*the same interrupt handler preempted itself */
 		/* GPU is being reset */
@@ -1248,7 +1244,6 @@ void kbasep_reset_timeout_worker(struct work_struct *data)
 
 	/* Output the state of some interesting registers to help in the
 	 * debugging of GPU resets */
-	smi_dumpDebugMsg();
 	kbase_debug_dump_registers(kbdev);
 
 	bckp_state = kbdev->hwcnt.state;
