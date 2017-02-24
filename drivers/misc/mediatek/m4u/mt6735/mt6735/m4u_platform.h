@@ -5,18 +5,18 @@
 
 #define M4U_BASE0                0xf0205000
 
-#define LARB0_BASE 	0xf4015000
-#define LARB1_BASE 	0xf6010000
-#define LARB2_BASE 	0xf5001000
-#define LARB3_BASE 	0xf7001000
+#define LARB0_BASE	0xf4015000
+#define LARB1_BASE	0xf6010000
+#define LARB2_BASE	0xf5001000
+#define LARB3_BASE	0xf7001000
 
-//mau related
+/* mau related */
 #define MAU_NR_PER_M4U_SLAVE    4
 
-//smi
+/* smi */
 #define SMI_LARB_NR     4
 
-//seq range related
+/* seq range related */
 #define SEQ_NR_PER_MM_SLAVE    8
 #define SEQ_NR_PER_PERI_SLAVE    0
 

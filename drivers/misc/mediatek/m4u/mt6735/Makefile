@@ -1,11 +1,12 @@
-include $(srctree)/drivers/misc/mediatek/Makefile.custom
-
-ccflags-y += -O0 -gdwarf-2
 ccflags-y += -I$(srctree)/drivers/staging/android/ion
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/gud/$(MTK_PLATFORM)/gud/MobiCoreKernelApi/public
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/gud/$(MTK_PLATFORM)/gud/MobiCoreKernelApi/include
+include $(srctree)/drivers/misc/mediatek/gud/Makefile.include
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include/trustzone/m4u
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include/mach
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/irq/$(MTK_PLATFORM)/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/mmp/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/m4u/2.0
 
 ifeq ($(CONFIG_ARCH_MT6735),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/m4u/$(MTK_PLATFORM)/mt6735/
@@ -20,5 +21,4 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/m4u/$(MTK_PLATFORM)/mt6753/
 obj-y += mt6753/
 endif
 
-obj-y += m4u.o m4u_mva.o m4u_pgtable.o m4u_hw.o m4u_debug.o
-
+obj-$(CONFIG_MTK_M4U) += m4u_hw.o

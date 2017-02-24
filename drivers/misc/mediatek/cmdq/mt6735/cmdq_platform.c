@@ -6,7 +6,7 @@
 #include <mach/mt_clkmgr.h>
 #include <linux/seq_file.h>
 
-#include "smi_debug.h"
+#include <../../smi/smi_debug.h>
 
 #define MMSYS_CONFIG_BASE  cmdq_dev_get_module_base_VA_MMSYS_CONFIG()
 
@@ -667,9 +667,9 @@ int cmdq_core_dump_smi(const int showSmiDump)
 	/* isSMIHang = smi_debug_bus_hanging_detect(
 						SMI_DBG_DISPSYS | SMI_DBG_VDEC | SMI_DBG_IMGSYS | SMI_DBG_VENC | SMI_DBG_MJC,
 						showSmiDump); */
-	isSMIHang = smi_debug_bus_hanging_detect_ext(
+	/* isSMIHang = smi_debug_bus_hanging_detect_ext(
 						SMI_DBG_DISPSYS | SMI_DBG_VDEC | SMI_DBG_IMGSYS | SMI_DBG_VENC | SMI_DBG_MJC,
-						showSmiDump, 1);
+						showSmiDump, 1); */
 	CMDQ_ERR("SMI Hang? = %d\n", isSMIHang);
 #endif
 
