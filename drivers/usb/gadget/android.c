@@ -52,6 +52,11 @@
 #include "f_eem.c"
 #include "u_ether.c"
 
+#include "f_hid.h"
+#include "f_hid_android_keyboard.c"
+#include "f_hid_android_mouse.c"
+
+
 //#define CONFIG_MTK_C2K_SUPPORT
 #ifdef CONFIG_MTK_C2K_SUPPORT
 #include <mach/viatel_rawbulk.h>
@@ -70,17 +75,9 @@ static const char longname[] = "Gadget Android";
 #define VENDOR_ID		0x0BB4
 #define PRODUCT_ID		0x0001
 
-#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
-#include <mach/mt_boot_common.h>
-#define KPOC_USB_FUNC "mtp"
-#define KPOC_USB_VENDOR_ID 0x0E8D
-#define KPOC_USB_PRODUCT_ID 0x2008
-extern BOOTMODE g_boot_mode;
-#endif
-
 /* Default manufacturer and product string , overridden by userspace */
-#define MANUFACTURER_STRING "MediaTek"
-#define PRODUCT_STRING "MT65xx Android Phone"
+#define MANUFACTURER_STRING "Meizu"
+#define PRODUCT_STRING "m2note"
 
 
 //#define USB_LOG "USB"
@@ -1550,10 +1547,6 @@ static int mass_storage_function_init(struct android_usb_function *f,
 
 static void mass_storage_function_cleanup(struct android_usb_function *f)
 {
-	struct mass_storage_function_config *config;
-
-	config = f->config;
-	fsg_common_put(config->common);
 	kfree(f->config);
 	f->config = NULL;
 }
@@ -1818,12 +1811,49 @@ static struct android_usb_function audio_source_function = {
 	.attributes	= audio_source_function_attributes,
 };
 
+static int hid_function_init(struct android_usb_function *f, struct usb_composite_dev *cdev)
+{
+	return ghid_setup(cdev->gadget, 2);
+}
+
+static void hid_function_cleanup(struct android_usb_function *f)
+{
+	ghid_cleanup();
+}
+
+static int hid_function_bind_config(struct android_usb_function *f, struct usb_configuration *c)
+{
+	int ret;
+	printk(KERN_INFO "hid keyboard\n");
+	ret = hidg_bind_config(c, &ghid_device_android_keyboard, 0);
+	if (ret) {
+		pr_info("%s: hid_function_bind_config keyboard failed: %d\n", __func__, ret);
+		return ret;
+	}
+	printk(KERN_INFO "hid mouse\n");
+	ret = hidg_bind_config(c, &ghid_device_android_mouse, 1);
+	if (ret) {
+		pr_info("%s: hid_function_bind_config mouse failed: %d\n", __func__, ret);
+		return ret;
+	}
+	return 0;
+}
+
+static struct android_usb_function hid_function = {
+	.name= "hid",
+	.init= hid_function_init,
+	.cleanup= hid_function_cleanup,
+	.bind_config= hid_function_bind_config,
+};
+
+
 static struct android_usb_function *supported_functions[] = {
 	&ffs_function,
 	&adb_function,
 	&acm_function,
 	&mtp_function,
 	&ptp_function,
+	&hid_function,
 #ifndef CONFIG_USBIF_COMPLIANCE
 	&ecm_function,
 	&eem_function,
@@ -2024,18 +2054,6 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 
 	INIT_LIST_HEAD(&dev->enabled_functions);
 
-#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
-	if(g_boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT || g_boot_mode == LOW_POWER_OFF_CHARGING_BOOT){
-		pr_notice("[USB]KPOC, func%s\n", KPOC_USB_FUNC);
-		err = android_enable_function(dev, KPOC_USB_FUNC);
-		if (err)
-			pr_err("android_usb: Cannot enable '%s' (%d)",
-					KPOC_USB_FUNC, err);
-		mutex_unlock(&dev->mutex);
-		return size;
-	}
-#endif
-
 	/* Added for USB Develpment debug, more log for more debuging help */
 	pr_notice("[USB]%s: \n", __func__);
 	/* Added for USB Develpment debug, more log for more debuging help */
@@ -2082,6 +2100,8 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 			pr_err("android_usb: Cannot enable '%s' (%d)",
 							   name, err);
 	}
+
+	android_enable_function(dev, "hid");
 
 	mutex_unlock(&dev->mutex);
 
@@ -2131,13 +2151,6 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 		 */
 		cdev->desc.idVendor = device_desc.idVendor;
 		cdev->desc.idProduct = device_desc.idProduct;
-#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
-	if(g_boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT || g_boot_mode == LOW_POWER_OFF_CHARGING_BOOT){
-			pr_notice("[USB]KPOC, vid:%d, pid:%d\n", KPOC_USB_VENDOR_ID, KPOC_USB_PRODUCT_ID);
-			cdev->desc.idVendor = __constant_cpu_to_le16(KPOC_USB_VENDOR_ID);
-			cdev->desc.idProduct = __constant_cpu_to_le16(KPOC_USB_PRODUCT_ID);
-		}
-#endif
 		cdev->desc.bcdDevice = device_desc.bcdDevice;
 		cdev->desc.bDeviceClass = device_desc.bDeviceClass;
 		cdev->desc.bDeviceSubClass = device_desc.bDeviceSubClass;
