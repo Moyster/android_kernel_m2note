@@ -320,6 +320,8 @@ static ssize_t _cl_bcct_write(struct file *filp, const char __user *buf, size_t 
 	char tmp[128] = {0};
 	int klog_on, limit0, limit1, limit2;
 
+	len = (len < (128 - 1)) ? len : (128 - 1);
+
 	/* write data to the buffer */
 	if ( copy_from_user(tmp, buf, len) ) {
 		return -EFAULT;

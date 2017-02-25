@@ -689,6 +689,9 @@ static int __init ncp1854_init(void)
 
 static void __exit ncp1854_exit(void)
 {
+    if (new_client != NULL)
+        kfree(new_client);
+
     i2c_del_driver(&ncp1854_driver);
 }
 

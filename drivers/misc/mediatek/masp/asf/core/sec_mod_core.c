@@ -262,7 +262,12 @@ long sec_core_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             {
                 return -EFAULT;
             }
-            
+
+            if (hevc_blk.len > HEVC_BLK_LEN) {
+                SMSG(TRUE, "[%s] eop block size is too large!", MOD);
+                return -EFAULT;
+            }
+
             if ((hevc_blk.len % CI_BLK_SIZE) == 0)
             {
                 cipher_len = hevc_blk.len;
@@ -287,6 +292,11 @@ long sec_core_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             SMSG(TRUE,"[%s] CMD - SEC_HEVC_DOP\n",MOD);   
             if(osal_copy_from_user((void *)(&hevc_blk), (void __user *)arg, sizeof(HEVC_BLK)))
             {
+                return -EFAULT;
+            }
+
+            if (hevc_blk.len > HEVC_BLK_LEN) {
+                SMSG(TRUE, "[%s] dop block size is too large!", MOD);
                 return -EFAULT;
             }
 
