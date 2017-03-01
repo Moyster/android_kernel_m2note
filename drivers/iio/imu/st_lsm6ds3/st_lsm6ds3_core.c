@@ -2542,7 +2542,6 @@ EXPORT_SYMBOL(st_lsm6ds3_common_remove);
 #ifdef CONFIG_PM
 int st_lsm6ds3_common_suspend(struct lsm6ds3_data *cdata)
 {
-#ifndef CONFIG_ST_LSM6DS3_IIO_SENSORS_WAKEUP
 	int err, i;
 	u8 tmp_sensors_enabled;
 	struct lsm6ds3_sensor_data *sdata;
@@ -2550,7 +2549,7 @@ int st_lsm6ds3_common_suspend(struct lsm6ds3_data *cdata)
 	tmp_sensors_enabled = cdata->sensors_enabled;
 
 	for (i = 0; i < ST_INDIO_DEV_NUM; i++) {
-		if ((i == ST_INDIO_DEV_SIGN_MOTION) || (i == ST_INDIO_DEV_TILT))
+		if ((1 << i) & ST_LSM6DS3_WAKE_UP_SENSORS)
 			continue;
 
 		sdata = iio_priv(cdata->indio_dev[i]);
@@ -2560,7 +2559,6 @@ int st_lsm6ds3_common_suspend(struct lsm6ds3_data *cdata)
 			return err;
 	}
 	cdata->sensors_enabled = tmp_sensors_enabled;
-#endif /* CONFIG_ST_LSM6DS3_IIO_SENSORS_WAKEUP */
 
 	sdata = iio_priv(cdata->indio_dev[ST_INDIO_DEV_ACCEL]);
 	if (sdata->sensor_phone_calling && (cdata->sensors_enabled & (1 << sdata->sindex))) {
@@ -2584,12 +2582,11 @@ EXPORT_SYMBOL(st_lsm6ds3_common_suspend);
 
 int st_lsm6ds3_common_resume(struct lsm6ds3_data *cdata)
 {
-#ifndef CONFIG_ST_LSM6DS3_IIO_SENSORS_WAKEUP
 	int err, i;
 	struct lsm6ds3_sensor_data *sdata;
 
 	for (i = 0; i < ST_INDIO_DEV_NUM; i++) {
-		if ((i == ST_INDIO_DEV_SIGN_MOTION) || (i == ST_INDIO_DEV_TILT))
+		if ((1 << i) & ST_LSM6DS3_WAKE_UP_SENSORS)
 			continue;
 
 		sdata = iio_priv(cdata->indio_dev[i]);
@@ -2600,7 +2597,6 @@ int st_lsm6ds3_common_resume(struct lsm6ds3_data *cdata)
 				return err;
 		}
 	}
-#endif /* CONFIG_ST_LSM6DS3_IIO_SENSORS_WAKEUP */
 
 	if (cdata->sensors_enabled & ST_LSM6DS3_WAKE_UP_SENSORS) {
 		if (device_may_wakeup(cdata->dev))
