@@ -26,8 +26,10 @@ static void zcomp_lz4_destroy(void *private)
 static int zcomp_lz4_compress(const unsigned char *src, unsigned char *dst,
 		size_t *dst_len, void *private)
 {
-	/* return  : Success if return 0 */
-	return LZ4_compress_default(src, dst, PAGE_SIZE, *dst_len, private);
+	/* return  : Failed if return 0 */
+	if(!LZ4_compress_default(src, dst, PAGE_SIZE, *dst_len, private))
+		return -EIO;
+	return 0;
 }
 
 static int zcomp_lz4_decompress(const unsigned char *src, size_t src_len,
