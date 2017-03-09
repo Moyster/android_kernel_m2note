@@ -26,7 +26,7 @@
 #include <linux/sched.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
-#include <linux/rtc.h>
+//#include <linux/rtc.h> 
 #include <linux/alarmtimer.h>
 #include "android_alarm.h"
 #include <linux/ioctl.h>
@@ -99,45 +99,6 @@ static void devalarm_cancel(struct devalarm *alrm)
 		hrtimer_cancel(&alrm->u.hrt);
 }
 
-void alarm_set_power_on(struct timespec new_pwron_time, bool logo)
-{
-	unsigned long pwron_time;
-	struct rtc_wkalrm alm;
-	struct rtc_device *alarm_rtc_dev;
-
-	alarm_dbg(INFO, "alarm set power on\n");
-
-#ifdef RTC_PWRON_SEC
-	/* round down the second */
-	new_pwron_time.tv_sec = (new_pwron_time.tv_sec / 60) * 60;
-#endif
-	if (new_pwron_time.tv_sec > 0) {
-		pwron_time = new_pwron_time.tv_sec;
-#ifdef RTC_PWRON_SEC
-		pwron_time += RTC_PWRON_SEC;
-#endif
-		alm.enabled = (logo ? 3 : 2);
-	} else {
-		pwron_time = 0;
-		alm.enabled = 4;
-	}
-	alarm_rtc_dev = alarmtimer_get_rtcdev();
-	rtc_time_to_tm(pwron_time, &alm.time);
-	rtc_set_alarm(alarm_rtc_dev, &alm);
-	rtc_set_alarm_poweron(alarm_rtc_dev, &alm);
-}
-
-void alarm_get_power_on(struct rtc_wkalrm *alm)
-{
-	if (!alm)
-		return;
-
-	memset(alm, 0, sizeof(struct rtc_wkalrm));
-#ifndef CONFIG_MTK_FPGA
-	rtc_read_pwron_alarm(alm);
-#endif
-}
-
 static void alarm_clear(enum android_alarm_type alarm_type,
 							struct timespec *ts)
 {
@@ -169,6 +130,8 @@ static void alarm_set(enum android_alarm_type alarm_type,
 	uint32_t alarm_type_mask = 1U << alarm_type;
 	unsigned long flags;
 
+        alarm_dbg(INFO, "alarm %d set %ld.%09ld\n",
+                        alarm_type, ts->tv_sec, ts->tv_nsec);
 	if (alarm_type == ANDROID_ALARM_POWER_ON) {
 		alarm_set_power_on(*ts, false);
 		return;
@@ -272,18 +235,15 @@ static long alarm_do_ioctl(struct file *file, unsigned int cmd,
 	unsigned long flags;
 	enum android_alarm_type alarm_type = ANDROID_ALARM_IOCTL_TO_TYPE(cmd);
 
-	alarm_dbg(INFO, "alarm_do_ioctl cmd:%d type:%d (%lu)\n",
-		cmd, alarm_type, (uintptr_t)file->private_data);
-
 	if (alarm_type >= ANDROID_ALARM_TYPE_COUNT &&
 		alarm_type != ANDROID_ALARM_POWER_ON &&
 		alarm_type != ANDROID_ALARM_POWER_ON_LOGO) {
 		return -EINVAL;
 	}
 
-	if (ANDROID_ALARM_BASE_CMD(cmd) != ANDROID_ALARM_GET_TIME(0)
-		&& ANDROID_ALARM_BASE_CMD(cmd) != ANDROID_ALARM_SET_IPO(0)
-		&& ANDROID_ALARM_BASE_CMD(cmd) != ANDROID_ALARM_GET_POWER_ON_IPO) {
+        if (ANDROID_ALARM_BASE_CMD(cmd) != ANDROID_ALARM_GET_TIME(0)
+                && ANDROID_ALARM_BASE_CMD(cmd)!= ANDROID_ALARM_SET_IPO(0)
+                                && ANDROID_ALARM_BASE_CMD(cmd) != ANDROID_ALARM_GET_POWER_ON_IPO) {
 		if ((file->f_flags & O_ACCMODE) == O_RDONLY)
 			return -EPERM;
 		if (file->private_data == NULL &&
@@ -291,14 +251,14 @@ static long alarm_do_ioctl(struct file *file, unsigned int cmd,
 			spin_lock_irqsave(&alarm_slock, flags);
 			if (alarm_opened) {
 				spin_unlock_irqrestore(&alarm_slock, flags);
-				alarm_dbg(INFO, "alarm_do_ioctl EBUSY\n");
-				file->private_data = NULL;
+				//alarm_dbg(INFO, "alarm_do_ioctl EBUSY\n");
+				//file->private_data = NULL;
 				return -EBUSY;
 			}
 			alarm_opened = 1;
 			file->private_data = (void *)1;
 			spin_unlock_irqrestore(&alarm_slock, flags);
-			alarm_dbg(INFO, "alarm_do_ioctl opened\n");
+			//alarm_dbg(INFO, "alarm_do_ioctl opened\n");
 		}
 	}
 
@@ -372,8 +332,8 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	case ANDROID_ALARM_GET_POWER_ON:
 	case ANDROID_ALARM_GET_POWER_ON_IPO:
-		if (copy_to_user((void __user *)arg,
-			&pwron_alm, sizeof(struct rtc_wkalrm))) {
+		if (copy_to_user((void __user *)arg, &pwron_alm,
+			    sizeof(struct rtc_wkalrm))) {
 			rv = -EFAULT;
 			return rv;
 		}
