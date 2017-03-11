@@ -26,7 +26,6 @@
 #include <linux/sched.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
-//#include <linux/rtc.h> 
 #include <linux/alarmtimer.h>
 #include "android_alarm.h"
 #include <linux/ioctl.h>
@@ -251,14 +250,11 @@ static long alarm_do_ioctl(struct file *file, unsigned int cmd,
 			spin_lock_irqsave(&alarm_slock, flags);
 			if (alarm_opened) {
 				spin_unlock_irqrestore(&alarm_slock, flags);
-				//alarm_dbg(INFO, "alarm_do_ioctl EBUSY\n");
-				//file->private_data = NULL;
 				return -EBUSY;
 			}
 			alarm_opened = 1;
 			file->private_data = (void *)1;
 			spin_unlock_irqrestore(&alarm_slock, flags);
-			//alarm_dbg(INFO, "alarm_do_ioctl opened\n");
 		}
 	}
 
