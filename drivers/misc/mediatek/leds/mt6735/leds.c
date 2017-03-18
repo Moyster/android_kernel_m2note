@@ -65,11 +65,7 @@ struct wake_lock leds_suspend_lock;
 /****************************************************************************
  * DEBUG MACROS
  ***************************************************************************/
-#ifdef MEIZU_M81
 static int debug_enable_led_hal = 0;
-#else
-static int debug_enable_led_hal = 1;
-#endif
 #define LEDS_DEBUG(format, args...) do{ \
 	if(debug_enable_led_hal) \
 	{\
