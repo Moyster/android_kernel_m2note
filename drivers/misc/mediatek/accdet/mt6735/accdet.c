@@ -27,11 +27,7 @@ extern struct i2c_client *ts3a225e_i2c_client;
 
 static int button_press_debounce = 0x400;
 
-#ifdef MEIZU_M81
 static int debug_enable = 0;
-#else
-static int debug_enable = 1;
-#endif
 int cur_key = 0;
 s8 accdet_auxadc_offset;
 int accdet_irq;
