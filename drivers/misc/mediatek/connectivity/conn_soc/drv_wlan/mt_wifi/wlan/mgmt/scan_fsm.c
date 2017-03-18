@@ -267,11 +267,6 @@
 *                           P R I V A T E   D A T A
 ********************************************************************************
 */
-
-#ifdef MEIZU_M81
-#define DBG 1
-#endif
-
 #if DBG
 /*lint -save -e64 Type mismatch */
 static PUINT_8 apucDebugScanState[SCAN_STATE_NUM] = {
