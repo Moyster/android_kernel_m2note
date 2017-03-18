@@ -214,14 +214,14 @@ m_len_done:
 }
 lzo1x_1_do_compress_zram(const unsigned char *in, size_t in_len,
 		    unsigned char *out, size_t *out_len,
-		    size_t ti, void *wrkmem,int *tmp_hash)
+		    size_t ti, void *wrkmem, int *tmp_hash)
 {
 	const unsigned char *ip;
 	unsigned char *op;
 	const unsigned char * const in_end = in + in_len;
 	const unsigned char * const ip_end = in + in_len - 20;
 	const unsigned char *ii;
-	int t_total = 0,old_t = 0;
+	int t_total = 0, old_t = 0;
 	lzo_dict_t * const dict = (lzo_dict_t *) wrkmem;
 
 	op = out;
@@ -232,7 +232,7 @@ lzo1x_1_do_compress_zram(const unsigned char *in, size_t in_len,
 	for (;;) {
 		const unsigned char *m_pos;
 		size_t t, m_len, m_off;
-		
+
 		u32 dv;
 literal2:
 		ip += 1 + ((ip - ii) >> 5);
@@ -243,12 +243,12 @@ next2:
 		t = ((dv * 0x1824429d) >> (32 - D_BITS));
 		if(tmp_hash != NULL)
 		{
-			*tmp_hash += (int)(t - old_t); 
+			*tmp_hash += (int)(t - old_t);
 			old_t = t;
 			t_total += t;
 		}
 		t = t & D_MASK;
-		m_pos = in + dict[t];	
+		m_pos = in + dict[t];
 		dict[t] = (lzo_dict_t) (ip - in);
 		if (unlikely(dv != get_unaligned_le32(m_pos)))
 			goto literal2;
@@ -414,7 +414,7 @@ m_len_done2:
 	}
 	*out_len = op - out;
 
-	if(t_total > *tmp_hash)
+	if (t_total > *tmp_hash)
 	{
 		*tmp_hash = t_total;
 	}
@@ -484,7 +484,7 @@ int lzo1x_1_compress(const unsigned char *in, size_t in_len,
 EXPORT_SYMBOL_GPL(lzo1x_1_compress);
 int lzo1x_1_compress_zram(const unsigned char *in, size_t in_len,
                      unsigned char *out, size_t *out_len,
-                     void *wrkmem,int *checksum)
+                     void *wrkmem, int *checksum)
 {
         const unsigned char *ip = in;
         unsigned char *op = out;
@@ -511,7 +511,7 @@ int lzo1x_1_compress_zram(const unsigned char *in, size_t in_len,
 		}
 		if(*out_len >= 4)
 		{       unsigned int *tmp_op = op;
-			out_hash = out_hash ^*tmp_op;
+			out_hash = out_hash ^ *tmp_op;
 		}
 
 
@@ -568,8 +568,7 @@ int lzo1x_1_compress_zram(const unsigned char *in, size_t in_len,
 	{
 		unsigned int *tmp_out = out;
 		unsigned int tmp_checksum = 0;
-		tmp_checksum = (unsigned int)*checksum+(unsigned int)*tmp_out; 
-		//if(tmp_checksum > (unsigned int)*checksum)
+		tmp_checksum = (unsigned int)*checksum+(unsigned int)*tmp_out;
 			*checksum = (int)tmp_checksum;
 	}
         return LZO_E_OK;
