@@ -60,7 +60,7 @@
 /*
  * hps task main loop
  */
-static int __cpuinit _hps_task_main(void *data)
+static int _hps_task_main(void *data)
 {
     int cnt = 0;
     void (*algo_func_ptr)(void);
@@ -104,7 +104,7 @@ static int __cpuinit _hps_task_main(void *data)
 /*
  * hps task control interface
  */
-int __cpuinit hps_task_start(void)
+int hps_task_start(void)
 {
     struct sched_param param = { .sched_priority = HPS_TASK_PRIORITY };
 
@@ -158,7 +158,7 @@ void hps_task_wakeup(void)
 /*
  * init
  */
-int __cpuinit hps_core_init(void)
+int hps_core_init(void)
 {
     int r = 0;
 

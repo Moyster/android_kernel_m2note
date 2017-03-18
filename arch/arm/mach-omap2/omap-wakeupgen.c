@@ -323,7 +323,7 @@ static void irq_save_secure_context(void)
 #endif
 
 #ifdef CONFIG_HOTPLUG_CPU
-static int __cpuinit irq_cpu_hotplug_notify(struct notifier_block *self,
+static int irq_cpu_hotplug_notify(struct notifier_block *self,
 					 unsigned long action, void *hcpu)
 {
 	unsigned int cpu = (unsigned int)hcpu;

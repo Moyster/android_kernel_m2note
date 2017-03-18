@@ -461,7 +461,7 @@ static struct notifier_block acpi_cpu_notifier =
  * acpi_cpu_soft_notify(). Getting it __cpuinit{data} is difficult, the
  * root cause seem to be that acpi_processor_uninstall_hotplug_notify()
  * is in the module_exit (__exit) func. Allowing acpi_processor_start()
- * to not be in __cpuinit section, but being called from __cpuinit funcs
+ * to not be in section, but being called from funcs
  * via __ref looks like the right thing to do here.
  */
 static __ref int acpi_processor_start(struct acpi_processor *pr)
@@ -524,7 +524,7 @@ err_power_exit:
  * (cpu_data(cpu)) values, like CPU feature flags, family, model, etc.
  * Such things have to be put in and set up above in acpi_processor_start()
  */
-static int __cpuinit acpi_processor_add(struct acpi_device *device)
+static int acpi_processor_add(struct acpi_device *device)
 {
 	struct acpi_processor *pr = NULL;
 	int result = 0;

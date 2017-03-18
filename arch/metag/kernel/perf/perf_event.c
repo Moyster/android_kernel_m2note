@@ -813,7 +813,7 @@ static struct metag_pmu _metag_pmu = {
 };
 
 /* PMU CPU hotplug notifier */
-static int __cpuinit metag_pmu_cpu_notify(struct notifier_block *b,
+static int metag_pmu_cpu_notify(struct notifier_block *b,
 		unsigned long action, void *hcpu)
 {
 	unsigned int cpu = (unsigned int)hcpu;
@@ -828,7 +828,7 @@ static int __cpuinit metag_pmu_cpu_notify(struct notifier_block *b,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata metag_pmu_notifier = {
+static struct notifier_block metag_pmu_notifier = {
 	.notifier_call = metag_pmu_cpu_notify,
 };
 

@@ -86,7 +86,7 @@ static void wdt_dump_reg(void)
 }
 
 
-static int __cpuinit cpu_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
+static int cpu_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
 {
 	int hotcpu = (unsigned long)hcpu;
 
@@ -123,7 +123,7 @@ static int __cpuinit cpu_callback(struct notifier_block *nfb, unsigned long acti
 	return NOTIFY_OK;
 }
 
-static struct notifier_block cpu_nfb __cpuinitdata = {
+static struct notifier_block cpu_nfb = {
 	.notifier_call = cpu_callback
 };
 

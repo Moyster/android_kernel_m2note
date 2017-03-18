@@ -65,7 +65,7 @@ static DEFINE_SPINLOCK(boot_lock);
 /*
  * "thread" is assumed to be a valid Meta hardware thread ID.
  */
-int __cpuinit boot_secondary(unsigned int thread, struct task_struct *idle)
+int boot_secondary(unsigned int thread, struct task_struct *idle)
 {
 	u32 val;
 
@@ -115,7 +115,7 @@ int __cpuinit boot_secondary(unsigned int thread, struct task_struct *idle)
  * If the cache partition has changed, prints a message to the log describing
  * those changes.
  */
-static __cpuinit void describe_cachepart_change(unsigned int thread,
+static void describe_cachepart_change(unsigned int thread,
 						const char *label,
 						unsigned int sz,
 						unsigned int old,
@@ -167,7 +167,7 @@ static __cpuinit void describe_cachepart_change(unsigned int thread,
  * Ensures that coherency is enabled and that the threads share the same cache
  * partitions.
  */
-static __cpuinit void setup_smp_cache(unsigned int thread)
+static void setup_smp_cache(unsigned int thread)
 {
 	unsigned int this_thread, lflags;
 	unsigned int dcsz, dcpart_this, dcpart_old, dcpart_new;
@@ -212,7 +212,7 @@ static __cpuinit void setup_smp_cache(unsigned int thread)
 				  icpart_old, icpart_new);
 }
 
-int __cpuinit __cpu_up(unsigned int cpu, struct task_struct *idle)
+int __cpu_up(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned int thread = cpu_2_hwthread_id[cpu];
 	int ret;
@@ -273,7 +273,7 @@ static DECLARE_COMPLETION(cpu_killed);
 /*
  * __cpu_disable runs on the processor to be shutdown.
  */
-int __cpuexit __cpu_disable(void)
+int __cpu_disable(void)
 {
 	unsigned int cpu = smp_processor_id();
 	struct task_struct *p;
@@ -310,7 +310,7 @@ int __cpuexit __cpu_disable(void)
  * called on the thread which is asking for a CPU to be shutdown -
  * waits until shutdown has completed, or it is timed out.
  */
-void __cpuexit __cpu_die(unsigned int cpu)
+void __cpu_die(unsigned int cpu)
 {
 	if (!wait_for_completion_timeout(&cpu_killed, msecs_to_jiffies(1)))
 		pr_err("CPU%u: unable to kill\n", cpu);
@@ -322,7 +322,7 @@ void __cpuexit __cpu_die(unsigned int cpu)
  * Note that we do not return from this function. If this cpu is
  * brought online again it will need to run secondary_startup().
  */
-void __cpuexit cpu_die(void)
+void cpu_die(void)
 {
 	local_irq_disable();
 	idle_task_exit();
@@ -337,7 +337,7 @@ void __cpuexit cpu_die(void)
  * Called by both boot and secondaries to move global data into
  * per-processor storage.
  */
-void __cpuinit smp_store_cpu_info(unsigned int cpuid)
+void smp_store_cpu_info(unsigned int cpuid)
 {
 	struct cpuinfo_metag *cpu_info = &per_cpu(cpu_data, cpuid);
 

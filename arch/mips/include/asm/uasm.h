@@ -17,8 +17,8 @@
 #define __uasminitdata
 #define UASM_EXPORT_SYMBOL(sym) EXPORT_SYMBOL(sym)
 #else
-#define __uasminit __cpuinit
-#define __uasminitdata __cpuinitdata
+#define __uasminit
+#define __uasminitdatadata
 #define UASM_EXPORT_SYMBOL(sym)
 #endif
 

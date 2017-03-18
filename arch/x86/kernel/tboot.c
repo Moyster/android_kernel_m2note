@@ -319,7 +319,7 @@ static int tboot_wait_for_aps(int num_aps)
 	return !(atomic_read((atomic_t *)&tboot->num_in_wfs) == num_aps);
 }
 
-static int __cpuinit tboot_cpu_callback(struct notifier_block *nfb,
+static int tboot_cpu_callback(struct notifier_block *nfb,
 			unsigned long action, void *hcpu)
 {
 	switch (action) {
@@ -333,7 +333,7 @@ static int __cpuinit tboot_cpu_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block tboot_cpu_notifier __cpuinitdata =
+static struct notifier_block tboot_cpu_notifier =
 {
 	.notifier_call = tboot_cpu_callback,
 };

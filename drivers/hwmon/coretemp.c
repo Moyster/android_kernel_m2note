@@ -195,7 +195,7 @@ struct tjmax {
 	int tjmax;
 };
 
-static const struct tjmax __cpuinitconst tjmax_table[] = {
+static const struct tjmax tjmax_table[] = {
 	{ "CPU  230", 100000 },		/* Model 0x1c, stepping 2	*/
 	{ "CPU  330", 125000 },		/* Model 0x1c, stepping 2	*/
 	{ "CPU CE4110", 110000 },	/* Model 0x1c, stepping 10 Sodaville */
@@ -211,7 +211,7 @@ struct tjmax_model {
 
 #define ANY 0xff
 
-static const struct tjmax_model __cpuinitconst tjmax_model_table[] = {
+static const struct tjmax_model tjmax_model_table[] = {
 	{ 0x1c, 10, 100000 },	/* D4xx, K4xx, N4xx, D5xx, K5xx, N5xx */
 	{ 0x1c, ANY, 90000 },	/* Z5xx, N2xx, possibly others
 				 * Note: Also matches 230 and 330,
@@ -226,7 +226,7 @@ static const struct tjmax_model __cpuinitconst tjmax_model_table[] = {
 	{ 0x36, ANY, 100000 },	/* Atom Cedar Trail/Cedarview (N2xxx, D2xxx) */
 };
 
-static int __cpuinit adjust_tjmax(struct cpuinfo_x86 *c, u32 id,
+static int adjust_tjmax(struct cpuinfo_x86 *c, u32 id,
 				  struct device *dev)
 {
 	/* The 100C is default for both mobile and non mobile CPUs */
@@ -317,7 +317,7 @@ static int __cpuinit adjust_tjmax(struct cpuinfo_x86 *c, u32 id,
 	return tjmax;
 }
 
-static int __cpuinit get_tjmax(struct cpuinfo_x86 *c, u32 id,
+static int get_tjmax(struct cpuinfo_x86 *c, u32 id,
 			       struct device *dev)
 {
 	int err;
@@ -367,7 +367,7 @@ static int create_name_attr(struct platform_data *pdata,
 	return device_create_file(dev, &pdata->name_attr);
 }
 
-static int __cpuinit create_core_attrs(struct temp_data *tdata,
+static int create_core_attrs(struct temp_data *tdata,
 				       struct device *dev, int attr_no)
 {
 	int err, i;
@@ -401,7 +401,7 @@ exit_free:
 }
 
 
-static int __cpuinit chk_ucode_version(unsigned int cpu)
+static int chk_ucode_version(unsigned int cpu)
 {
 	struct cpuinfo_x86 *c = &cpu_data(cpu);
 
@@ -417,7 +417,7 @@ static int __cpuinit chk_ucode_version(unsigned int cpu)
 	return 0;
 }
 
-static struct platform_device __cpuinit *coretemp_get_pdev(unsigned int cpu)
+static struct platform_device *coretemp_get_pdev(unsigned int cpu)
 {
 	u16 phys_proc_id = TO_PHYS_ID(cpu);
 	struct pdev_entry *p;
@@ -434,7 +434,7 @@ static struct platform_device __cpuinit *coretemp_get_pdev(unsigned int cpu)
 	return NULL;
 }
 
-static struct temp_data __cpuinit *init_temp_data(unsigned int cpu,
+static struct temp_data *init_temp_data(unsigned int cpu,
 						  int pkg_flag)
 {
 	struct temp_data *tdata;
@@ -453,7 +453,7 @@ static struct temp_data __cpuinit *init_temp_data(unsigned int cpu,
 	return tdata;
 }
 
-static int __cpuinit create_core_data(struct platform_device *pdev,
+static int create_core_data(struct platform_device *pdev,
 				unsigned int cpu, int pkg_flag)
 {
 	struct temp_data *tdata;
@@ -524,7 +524,7 @@ exit_free:
 	return err;
 }
 
-static void __cpuinit coretemp_add_core(unsigned int cpu, int pkg_flag)
+static void coretemp_add_core(unsigned int cpu, int pkg_flag)
 {
 	struct platform_device *pdev = coretemp_get_pdev(cpu);
 	int err;
@@ -609,7 +609,7 @@ static struct platform_driver coretemp_driver = {
 	.remove = coretemp_remove,
 };
 
-static int __cpuinit coretemp_device_add(unsigned int cpu)
+static int coretemp_device_add(unsigned int cpu)
 {
 	int err;
 	struct platform_device *pdev;
@@ -653,7 +653,7 @@ exit:
 	return err;
 }
 
-static void __cpuinit coretemp_device_remove(unsigned int cpu)
+static void coretemp_device_remove(unsigned int cpu)
 {
 	struct pdev_entry *p, *n;
 	u16 phys_proc_id = TO_PHYS_ID(cpu);
@@ -669,7 +669,7 @@ static void __cpuinit coretemp_device_remove(unsigned int cpu)
 	mutex_unlock(&pdev_list_mutex);
 }
 
-static bool __cpuinit is_any_core_online(struct platform_data *pdata)
+static bool is_any_core_online(struct platform_data *pdata)
 {
 	int i;
 
@@ -683,7 +683,7 @@ static bool __cpuinit is_any_core_online(struct platform_data *pdata)
 	return false;
 }
 
-static void __cpuinit get_core_online(unsigned int cpu)
+static void get_core_online(unsigned int cpu)
 {
 	struct cpuinfo_x86 *c = &cpu_data(cpu);
 	struct platform_device *pdev = coretemp_get_pdev(cpu);
@@ -725,7 +725,7 @@ static void __cpuinit get_core_online(unsigned int cpu)
 	coretemp_add_core(cpu, 0);
 }
 
-static void __cpuinit put_core_offline(unsigned int cpu)
+static void put_core_offline(unsigned int cpu)
 {
 	int i, indx;
 	struct platform_data *pdata;
@@ -773,7 +773,7 @@ static void __cpuinit put_core_offline(unsigned int cpu)
 		coretemp_device_remove(cpu);
 }
 
-static int __cpuinit coretemp_cpu_callback(struct notifier_block *nfb,
+static int coretemp_cpu_callback(struct notifier_block *nfb,
 				 unsigned long action, void *hcpu)
 {
 	unsigned int cpu = (unsigned long) hcpu;

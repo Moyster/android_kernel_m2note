@@ -2070,7 +2070,7 @@ restart_trace(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata pftracer_notifier = {
+static struct notifier_block pftracer_notifier = {
 	.notifier_call = restart_trace,
 };
 

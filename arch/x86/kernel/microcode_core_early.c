@@ -40,7 +40,7 @@
  *
  * x86_vendor() gets vendor information directly through cpuid.
  */
-static int __cpuinit x86_vendor(void)
+static int x86_vendor(void)
 {
 	u32 eax = 0x00000000;
 	u32 ebx, ecx = 0, edx;
@@ -56,7 +56,7 @@ static int __cpuinit x86_vendor(void)
 	return X86_VENDOR_UNKNOWN;
 }
 
-static int __cpuinit x86_family(void)
+static int x86_family(void)
 {
 	u32 eax = 0x00000001;
 	u32 ebx, ecx = 0, edx;
@@ -85,7 +85,7 @@ void __init load_ucode_bsp(void)
 		load_ucode_intel_bsp();
 }
 
-void __cpuinit load_ucode_ap(void)
+void load_ucode_ap(void)
 {
 	int vendor, x86;
 

@@ -458,7 +458,7 @@ static struct kobj_type threshold_ktype = {
 	.default_attrs		= default_attrs,
 };
 
-static __cpuinit int allocate_threshold_blocks(unsigned int cpu,
+static int allocate_threshold_blocks(unsigned int cpu,
 					       unsigned int bank,
 					       unsigned int block,
 					       u32 address)
@@ -543,7 +543,7 @@ out_free:
 	return err;
 }
 
-static __cpuinit int __threshold_add_blocks(struct threshold_bank *b)
+static int __threshold_add_blocks(struct threshold_bank *b)
 {
 	struct list_head *head = &b->blocks->miscj;
 	struct threshold_block *pos = NULL;
@@ -567,7 +567,7 @@ static __cpuinit int __threshold_add_blocks(struct threshold_bank *b)
 	return err;
 }
 
-static __cpuinit int threshold_create_bank(unsigned int cpu, unsigned int bank)
+static int threshold_create_bank(unsigned int cpu, unsigned int bank)
 {
 	struct device *dev = per_cpu(mce_device, cpu);
 	struct amd_northbridge *nb = NULL;
@@ -632,7 +632,7 @@ static __cpuinit int threshold_create_bank(unsigned int cpu, unsigned int bank)
 }
 
 /* create dir/files for all valid threshold banks */
-static __cpuinit int threshold_create_device(unsigned int cpu)
+static int threshold_create_device(unsigned int cpu)
 {
 	unsigned int bank;
 	struct threshold_bank **bp;
@@ -736,7 +736,7 @@ static void threshold_remove_device(unsigned int cpu)
 }
 
 /* get notified when a cpu comes on/off */
-static void __cpuinit
+static void
 amd_64_threshold_cpu_callback(unsigned long action, unsigned int cpu)
 {
 	switch (action) {

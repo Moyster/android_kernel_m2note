@@ -821,7 +821,7 @@ static int hps_test1_proc_show(struct seq_file *m, void *v)
     return 0;
 }
 
-static int __cpuinit hps_test1_proc_write(struct file *file, const char __user *buffer, size_t count, loff_t *pos)
+static int hps_test1_proc_write(struct file *file, const char __user *buffer, size_t count, loff_t *pos)
 {
     int len = 0, test1 = 0;
     char desc[32];

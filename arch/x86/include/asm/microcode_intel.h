@@ -65,11 +65,11 @@ update_match_revision(struct microcode_header_intel *mc_header, int rev);
 
 #ifdef CONFIG_MICROCODE_INTEL_EARLY
 extern void __init load_ucode_intel_bsp(void);
-extern void __cpuinit load_ucode_intel_ap(void);
+extern void load_ucode_intel_ap(void);
 extern void show_ucode_info_early(void);
 #else
 static inline __init void load_ucode_intel_bsp(void) {}
-static inline __cpuinit void load_ucode_intel_ap(void) {}
+static inline void load_ucode_intel_ap(void) {}
 static inline void show_ucode_info_early(void) {}
 #endif
 

@@ -29,7 +29,7 @@ static int __init noexec_setup(char *str)
 }
 early_param("noexec", noexec_setup);
 
-void __cpuinit x86_configure_nx(void)
+void x86_configure_nx(void)
 {
 	if (cpu_has_nx && !disable_nx)
 		__supported_pte_mask |= _PAGE_NX;

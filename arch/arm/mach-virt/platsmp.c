@@ -34,7 +34,7 @@ static void __init virt_smp_prepare_cpus(unsigned int max_cpus)
 {
 }
 
-static int __cpuinit virt_boot_secondary(unsigned int cpu,
+static int virt_boot_secondary(unsigned int cpu,
 					 struct task_struct *idle)
 {
 	if (psci_ops.cpu_on)

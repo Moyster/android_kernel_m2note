@@ -23,7 +23,7 @@ static void __init simple_smp_init_cpus(void)
 {
 }
 
-static int __cpuinit mcpm_boot_secondary(unsigned int cpu, struct task_struct *idle)
+static int mcpm_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned int mpidr, pcpu, pcluster, ret;
 	extern void secondary_startup(void);
@@ -44,7 +44,7 @@ static int __cpuinit mcpm_boot_secondary(unsigned int cpu, struct task_struct *i
 	return 0;
 }
 
-static void __cpuinit mcpm_secondary_init(unsigned int cpu)
+static void mcpm_secondary_init(unsigned int cpu)
 {
 	mcpm_cpu_powered_up();
 }

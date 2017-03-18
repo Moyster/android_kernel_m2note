@@ -894,7 +894,7 @@ static inline void perf_ibs_pm_init(void) { }
 
 #endif
 
-static int __cpuinit
+static int
 perf_ibs_cpu_notifier(struct notifier_block *self, unsigned long action, void *hcpu)
 {
 	switch (action & ~CPU_TASKS_FROZEN) {

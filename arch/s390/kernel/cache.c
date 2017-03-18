@@ -173,7 +173,7 @@ error:
 	}
 }
 
-static struct cache_dir *__cpuinit cache_create_cache_dir(int cpu)
+static struct cache_dir *cache_create_cache_dir(int cpu)
 {
 	struct cache_dir *cache_dir;
 	struct kobject *kobj = NULL;
@@ -289,7 +289,7 @@ static struct kobj_type cache_index_type = {
 	.default_attrs = cache_index_default_attrs,
 };
 
-static int __cpuinit cache_create_index_dir(struct cache_dir *cache_dir,
+static int cache_create_index_dir(struct cache_dir *cache_dir,
 					    struct cache *cache, int index,
 					    int cpu)
 {
@@ -313,7 +313,7 @@ out:
 	return rc;
 }
 
-static int __cpuinit cache_add_cpu(int cpu)
+static int cache_add_cpu(int cpu)
 {
 	struct cache_dir *cache_dir;
 	struct cache *cache;
@@ -335,7 +335,7 @@ static int __cpuinit cache_add_cpu(int cpu)
 	return 0;
 }
 
-static void __cpuinit cache_remove_cpu(int cpu)
+static void cache_remove_cpu(int cpu)
 {
 	struct cache_index_dir *index, *next;
 	struct cache_dir *cache_dir;
@@ -354,7 +354,7 @@ static void __cpuinit cache_remove_cpu(int cpu)
 	cache_dir_cpu[cpu] = NULL;
 }
 
-static int __cpuinit cache_hotplug(struct notifier_block *nfb,
+static int cache_hotplug(struct notifier_block *nfb,
 				   unsigned long action, void *hcpu)
 {
 	int cpu = (long)hcpu;

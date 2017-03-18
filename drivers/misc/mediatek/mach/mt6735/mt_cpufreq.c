@@ -492,7 +492,7 @@ static int _mt_cpufreq_set_cur_volt_extbuck(struct mt_cpu_dvfs *p, unsigned int 
 #endif
 
 /* CPU callback */
-static int __cpuinit _mt_cpufreq_cpu_CB(struct notifier_block *nfb, unsigned long action, void *hcpu);
+static int _mt_cpufreq_cpu_CB(struct notifier_block *nfb, unsigned long action, void *hcpu);
 
 /* cpufreq driver */
 #ifdef CONFIG_CPU_FREQ
@@ -2702,7 +2702,7 @@ static void _mt_cpufreq_set(enum mt_cpu_dvfs_id id, int new_opp_idx)
     FUNC_EXIT(FUNC_LV_LOCAL);
 }
 
-static int __cpuinit _mt_cpufreq_cpu_CB(struct notifier_block *nfb, unsigned long action, void *hcpu)
+static int _mt_cpufreq_cpu_CB(struct notifier_block *nfb, unsigned long action, void *hcpu)
 {
     unsigned int cpu = (unsigned long)hcpu;
     unsigned int online_cpus = num_online_cpus();

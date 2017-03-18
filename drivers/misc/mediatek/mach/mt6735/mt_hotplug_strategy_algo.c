@@ -65,7 +65,7 @@
 /*
  * hps algo - hmp
  */
-void __cpuinit hps_algo_hmp(void)
+void hps_algo_hmp(void)
 {
     unsigned int cpu;
     unsigned int val;
@@ -512,7 +512,7 @@ ALGO_END_WO_ACTION:
 /*
  * hps algo - smp
  */
-void __cpuinit hps_algo_smp(void)
+void hps_algo_smp(void)
 {
     unsigned int cpu;
     unsigned int val;

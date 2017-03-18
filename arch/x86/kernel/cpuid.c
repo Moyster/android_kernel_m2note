@@ -137,7 +137,7 @@ static const struct file_operations cpuid_fops = {
 	.open = cpuid_open,
 };
 
-static __cpuinit int cpuid_device_create(int cpu)
+static int cpuid_device_create(int cpu)
 {
 	struct device *dev;
 
@@ -151,7 +151,7 @@ static void cpuid_device_destroy(int cpu)
 	device_destroy(cpuid_class, MKDEV(CPUID_MAJOR, cpu));
 }
 
-static int __cpuinit cpuid_class_cpu_callback(struct notifier_block *nfb,
+static int cpuid_class_cpu_callback(struct notifier_block *nfb,
 					      unsigned long action,
 					      void *hcpu)
 {

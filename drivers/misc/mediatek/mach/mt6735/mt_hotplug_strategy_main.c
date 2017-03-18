@@ -497,7 +497,7 @@ suspend_end:
 /*
  * resume callback
  */
-static int __cpuinit hps_resume(struct device *dev)
+static int hps_resume(struct device *dev)
 {
     unsigned int cpu,little_cpu_num_resume;
     hps_warn("%s\n", __func__);

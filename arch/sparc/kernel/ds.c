@@ -528,7 +528,7 @@ static void dr_cpu_mark(struct ds_data *resp, int cpu, int ncpus,
 	}
 }
 
-static int __cpuinit dr_cpu_configure(struct ds_info *dp,
+static int dr_cpu_configure(struct ds_info *dp,
 				      struct ds_cap_state *cp,
 				      u64 req_num,
 				      cpumask_t *mask)
@@ -627,7 +627,7 @@ static int dr_cpu_unconfigure(struct ds_info *dp,
 	return 0;
 }
 
-static void __cpuinit dr_cpu_data(struct ds_info *dp,
+static void dr_cpu_data(struct ds_info *dp,
 				  struct ds_cap_state *cp,
 				  void *buf, int len)
 {

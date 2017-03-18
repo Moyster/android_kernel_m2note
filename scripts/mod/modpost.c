@@ -1093,7 +1093,7 @@ static const struct sectioncheck *section_mismatch(
  * Pattern 2:
  *   Many drivers utilise a *driver container with references to
  *   add, remove, probe functions etc.
- *   These functions may often be marked __cpuinit and we do not want to
+ *   These functions may often be marked and we do not want to
  *   warn here.
  *   the pattern is identified by:
  *   tosec   = init or exit section

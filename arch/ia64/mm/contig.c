@@ -156,7 +156,7 @@ static void *cpu_data;
  *
  * Allocate and setup per-cpu data areas.
  */
-void * __cpuinit
+void *
 per_cpu_init (void)
 {
 	static bool first_time = true;

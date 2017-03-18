@@ -165,7 +165,7 @@ static void cpu_pmu_init(struct arm_pmu *cpu_pmu)
  * UNKNOWN at reset, the PMU must be explicitly reset to avoid reading
  * junk values out of them.
  */
-static int __cpuinit cpu_pmu_notify(struct notifier_block *b,
+static int cpu_pmu_notify(struct notifier_block *b,
 				    unsigned long action, void *hcpu)
 {
 	struct arm_pmu *pmu = per_cpu(cpu_pmu, (long)hcpu);
@@ -200,11 +200,11 @@ static int cpu_pmu_pm_notify(struct notifier_block *b,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata cpu_pmu_hotplug_notifier = {
+static struct notifier_block cpu_pmu_hotplug_notifier = {
 	.notifier_call = cpu_pmu_notify,
 };
 
-static struct notifier_block __cpuinitdata cpu_pmu_pm_notifier = {
+static struct notifier_block cpu_pmu_pm_notifier = {
 	.notifier_call = cpu_pmu_pm_notify,
 };
 
