@@ -551,7 +551,7 @@ void unthrottle_offline_rt_rqs(struct rq *rq) {
 		 */
 		if (rt_rq_throttled(rt_rq)){
 			rt_rq->rt_throttled = 0;
-			printk_deferred("sched: RT throttling inactivated\n");
+			printk_deferred("sched: RT throttling inactivated cpu\n");
 		}
 	}
 }
