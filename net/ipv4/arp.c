@@ -90,7 +90,6 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/fddidevice.h>
-#include <linux/if_arp.h>
 #include <linux/skbuff.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
@@ -117,6 +116,18 @@
 #include <linux/uaccess.h>
 
 #include <linux/netfilter_arp.h>
+
+/* arp_project */
+#include <net/arp_project.h>
+
+bool arp_project_enable = true;
+bool print_arp_info = false;
+static bool ignore_gw_update_by_request = true;
+static bool ignore_gw_update_by_reply = true;
+EXPORT_SYMBOL(arp_project_enable);
+EXPORT_SYMBOL(print_arp_info);
+
+extern __be32 ip_fib_get_gw(struct net_device *dev);
 
 /*
  *	Interface to generic neighbour cache.
@@ -147,14 +158,6 @@ static const struct neigh_ops arp_direct_ops = {
 	.family =		AF_INET,
 	.output =		neigh_direct_output,
 	.connected_output =	neigh_direct_output,
-};
-
-static const struct neigh_ops arp_broken_ops = {
-	.family =		AF_INET,
-	.solicit =		arp_solicit,
-	.error_report =		arp_error_report,
-	.output =		neigh_compat_output,
-	.connected_output =	neigh_compat_output,
 };
 
 /* MTK_NET_CHANGES */
@@ -259,35 +262,6 @@ static int arp_constructor(struct neighbour *neigh)
 		   in old paradigm.
 		 */
 
-#if 1
-		/* So... these "amateur" devices are hopeless.
-		   The only thing, that I can say now:
-		   It is very sad that we need to keep ugly obsolete
-		   code to make them happy.
-
-		   They should be moved to more reasonable state, now
-		   they use rebuild_header INSTEAD OF hard_start_xmit!!!
-		   Besides that, they are sort of out of date
-		   (a lot of redundant clones/copies, useless in 2.1),
-		   I wonder why people believe that they work.
-		 */
-		switch (dev->type) {
-		default:
-			break;
-		case ARPHRD_ROSE:
-#if IS_ENABLED(CONFIG_AX25)
-		case ARPHRD_AX25:
-#if IS_ENABLED(CONFIG_NETROM)
-		case ARPHRD_NETROM:
-#endif
-			neigh->ops = &arp_broken_ops;
-			neigh->output = neigh->ops->output;
-			return 0;
-#else
-			break;
-#endif
-		}
-#endif
 		if (neigh->type == RTN_MULTICAST) {
 			neigh->nud_state = NUD_NOARP;
 			arp_mc_map(addr, neigh->ha, dev, 1);
@@ -318,6 +292,119 @@ static void arp_error_report(struct neighbour *neigh, struct sk_buff *skb)
 	dst_link_failure(skb);
 	kfree_skb(skb);
 }
+
+/*
+ * arp_project
+ *
+ * Print ARP packet informations
+ *
+ * @dev - net device
+ * @arp - arp header
+ * @count - 0: Recevied ARP, 1: Sending ARP
+ */
+void arp_print_info(struct net_device *dev, struct arphdr *arp, int count)
+{
+	unsigned char *arp_ptr;
+	int i;
+
+	printk(ARP_PROJECT"%s - =============== ARP Info ===============\n",
+		__func__);
+
+	/* net_device info */
+	if (count)
+		printk(ARP_PROJECT"%s - Sending dev_addr: ", __func__);
+	else
+		printk(ARP_PROJECT"%s - Received dev_addr: ", __func__);
+	for (i = 0; i < dev->addr_len - 1; i++)
+		printk("%02x:", dev->dev_addr[i]);
+	printk("%02x\n", dev->dev_addr[i]);
+
+	/* operation info */
+	if (arp->ar_op == htons(ARPOP_REQUEST))
+		printk(ARP_PROJECT"%s - Operation: Request(1)\n", __func__);
+	else if (arp->ar_op == htons(ARPOP_REPLY))
+		printk(ARP_PROJECT"%s - Operation: Reply(2)\n", __func__);
+
+	/* Get arp_ptr infos */
+	arp_ptr = (unsigned char *)(arp + 1);
+
+	/* Sender Hardware Address info */
+	printk(ARP_PROJECT"%s - Sender HW: ", __func__);
+	for (i = 0; i < dev->addr_len - 1; i++)
+		printk("%02x:", arp_ptr[i]);
+	printk("%02x\n", arp_ptr[i]);
+
+	/* Move pointer */
+	arp_ptr += dev->addr_len;
+
+	printk(ARP_PROJECT"%s - Sender IP: ", __func__);
+	for (i = 0; i < 3; i++)
+		printk("%d.", arp_ptr[i]);
+	printk("%d\n", arp_ptr[i]);
+
+	/* Move pointer */
+	arp_ptr += 4;
+
+	/* Target Hardware Address info */
+	printk(ARP_PROJECT"%s - Target HW: ", __func__);
+	for (i = 0; i < dev->addr_len - 1; i++)
+		printk("%02x:", arp_ptr[i]);
+	printk("%02x\n", arp_ptr[i]);
+
+	/* Move pointer */
+	arp_ptr += dev->addr_len;
+
+	/* Target IP Address info */
+	printk(ARP_PROJECT"%s - Target IP: ", __func__);
+	for (i = 0; i < 3; i++)
+		printk("%d.", arp_ptr[i]);
+	printk("%d\n", arp_ptr[i]);
+}
+EXPORT_SYMBOL(arp_print_info);
+
+/* Create and send an arp packet. */
+static void arp_send_dst(int type, int ptype, __be32 dest_ip,
+			 struct net_device *dev, __be32 src_ip,
+			 const unsigned char *dest_hw,
+			 const unsigned char *src_hw,
+			 const unsigned char *target_hw, struct sk_buff *oskb)
+{
+	struct sk_buff *skb;
+
+	/* arp on this interface. */
+	if (dev->flags & IFF_NOARP)
+		return;
+	#ifdef CONFIG_MTK_NET_LOGGING  	
+    printk(KERN_INFO "[mtk_net][arp]arp_send type = %d, dev = %s\n", type, dev->name);
+    #endif
+	skb = arp_create(type, ptype, dest_ip, dev, src_ip,
+			 dest_hw, src_hw, target_hw);
+	if (!skb)
+		return;
+
+	/* arp_project - Print arp_ptr infos */
+	if (arp_project_enable && print_arp_info) {
+		struct arphdr *arp;
+
+		arp = arp_hdr(skb);
+		arp_print_info(dev, arp, 1);
+	}
+
+	if (oskb)
+		skb_dst_copy(skb, oskb);
+
+	arp_xmit(skb);
+}
+
+void arp_send(int type, int ptype, __be32 dest_ip,
+	      struct net_device *dev, __be32 src_ip,
+	      const unsigned char *dest_hw, const unsigned char *src_hw,
+	      const unsigned char *target_hw)
+{
+	arp_send_dst(type, ptype, dest_ip, dev, src_ip, dest_hw, src_hw,
+		     target_hw, NULL);
+}
+EXPORT_SYMBOL(arp_send);
 
 static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 {
@@ -369,15 +456,14 @@ static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 	} else {
 		probes -= neigh->parms->app_probes;
 		if (probes < 0) {
-#ifdef CONFIG_ARPD
 			neigh_app_ns(neigh);
-#endif
 			return;
 		}
 	}
 
-	arp_send(ARPOP_REQUEST, ETH_P_ARP, target, dev, saddr,
-		 dst_hw, dev->dev_addr, NULL);
+	arp_send_dst(ARPOP_REQUEST, ETH_P_ARP, target, dev, saddr,
+		     dst_hw, dev->dev_addr, NULL,
+		     dev->priv_flags & IFF_XMIT_DST_RELEASE ? NULL : skb);
 }
 
 static int arp_ignore(struct in_device *in_dev, __be32 sip, __be32 tip)
@@ -571,6 +657,71 @@ static inline int arp_fwd_pvlan(struct in_device *in_dev,
  *	Create an arp packet. If (dest_hw == NULL), we create a broadcast
  *	message.
  */
+
+/*
+
+ arp_project
+
+ == ARP Header Structure ==
+
+ 0                    7                         15                               31
+ |                    |                         |                                |
+ |-------------------------------------------------------------------------------|<- arp <- skb->data
+ |    <Hardware Type>   (Ethernet = 1)          | <Protocol Type> (IPv4: 0x0800) | |
+ |    arp->ar_hrd = htons(dev->type);           | arp->ar_pro = htons(ETH_P_IP); | |
+ |-------------------------------------------------------------------------------| |
+ | <HW Address Length> | <Protocol Addr Length> | <Operation Code>               | |<- sizeof(struct arp_hdr)
+ | (MAC: 6byte)        | (IPv4 Length: 4byte)   | int type; ---- ARPOP_REQUEST 1 | |
+ | arp->hln =          | arp->ar_pln = 4;       |            |-- ARPOP_REPLY   2 | |
+ |    dev->addr_len;   |                        | arp->ar_op = htons(type);      | |
+ |-------------------------------------------------------------------------------|<- arp + 1 <- arp_ptr
+ | <Sender Hardware Address>  (6byte MAC Address)                                | |
+ | memcpy(arp_ptr, src_hw, dev->addr_len);                                       | |
+ | arp_ptr += dev->addr_len;                                                     | |
+ |                                              |--------------------------------| |
+ |                                              |                                | |
+ |                                              |                                | |
+ |                                              |                                | |
+ |----------------------------------------------|--------------------------------| |
+ | <Sender Protocol Address> (4byte IP Address) |                                | |
+ | memcpy(arp_ptr, &src_ip, 4);                 |                                | |<- (dev->addr_len +
+ | arp_ptr += 4;                                |                                | |     sizeof(u32)) * 2
+ |----------------------------------------------|                                | |
+ | <Target Hardware Address>  (6byte MAC Address)                                | |
+ | if(target_hw != NULL) memcpy(arp_ptr, target_hw, dev->addr_len);              | |
+ | else memcpy(arp_ptr, 0, dev->addr_len);           arp_ptr += dev->addr_len;   | |
+ |-------------------------------------------------------------------------------| |
+ | <Target Protocol Address> (4byte IP Address)                                  | |
+ | memcpy(arp_ptr, &dest_ip, 4);                                                 | |
+ |                                                                               | |
+ |-------------------------------------------------------------------------------|<- skb->tail
+
+
+ == skb Structure ==
+
+ skb->head -->|----------------------------|
+              |            head            |   decrease head: skb_push()
+ skb->data -->|----------------------------|------
+              |                            |   increase head: skb_pull()
+              |            data            |
+              |                            |
+ skb->tail -->|----------------------------|------
+              |            tail            |    increase data: skb_put()
+ skb->end  -->|----------------------------|
+
+
+ @ type       ---- ARPOP_REQUEST 1
+               |-- ARPOP_REPLY   2
+ @ ptype      If Ethernet - ETH_P_ARP
+ @ dest_ip    Destination IP Address
+ @ dev        Network Device
+ @ dest_ip    Destination IP Address
+ @ src_ip     Source IP Address
+ @ dest_hw    Destination HW Address
+ @ src_hw     Source HW Address
+ @ target_hw  Target HW Address   (REPLY - same with dest_hw / REQUEST - NULL)
+*/
+
 struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 			   struct net_device *dev, __be32 src_ip,
 			   const unsigned char *dest_hw,
@@ -580,7 +731,7 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	struct sk_buff *skb;
 	struct arphdr *arp;
 	unsigned char *arp_ptr;
-	int hlen = LL_RESERVED_SPACE(dev);
+	int hlen = LL_RESERVED_SPACE(dev); // dev header + dev header room
 	int tlen = dev->needed_tailroom;
 
 	/*
@@ -591,19 +742,33 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	if (skb == NULL)
 		return NULL;
 
-	skb_reserve(skb, hlen);
+	skb_reserve(skb, hlen);	// reserve skb header (dev header + dev header room)
 	skb_reset_network_header(skb);
-	arp = (struct arphdr *) skb_put(skb, arp_hdr_len(dev));
+	arp = (struct arphdr *) skb_put(skb, arp_hdr_len(dev)); // reserve data space
+	/*
+
+	arp_project
+
+	 == arp_hdr_len(dev) ==
+
+	<linux/if_arp.h>
+	case ...IEEE_1394:
+		...
+	default: // (Ethernet is here)
+		return (sizeof(struct arp_hdr) + (dev->addr_len + sizeof(u32)) * 2;
+			// ARP Header + 2 device addresses + 2 IP addresses)
+	*/
 	skb->dev = dev;
 	skb->protocol = htons(ETH_P_ARP);
 	if (src_hw == NULL)
 		src_hw = dev->dev_addr;
-	if (dest_hw == NULL)
+	if (dest_hw == NULL)	// If REQUEST we should create a broadcast.
 		dest_hw = dev->broadcast;
 
 	/*
 	 *	Fill the device header for the ARP frame
 	 */
+	// If Ethernet, ptype = ETH_P_ARP
 	if (dev_hard_header(skb, dev, ptype, dest_hw, src_hw, skb->len) < 0)
 		goto out;
 
@@ -618,7 +783,7 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	 *	DIX code for the protocol. Make these device structure fields.
 	 */
 	switch (dev->type) {
-	default:
+	default:	// Ethernet is here
 		arp->ar_hrd = htons(dev->type);
 		arp->ar_pro = htons(ETH_P_IP);
 		break;
@@ -649,11 +814,19 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	arp->ar_pln = 4;
 	arp->ar_op = htons(type);
 
-	arp_ptr = (unsigned char *)(arp + 1);
+	/*
+
+	arp_project
+
+	 skb_put reserved size of arphdr(ARP header) + 2 MACs + 2 IPs.
+	 But remember the variable *arp 's type is arphdr.
+	 So we can put arp data after (arp + 1) that end of ARP header.
+	*/
+	arp_ptr = (unsigned char *)(arp + 1);	// Next to the ARP Header (arp_hdr)
 
 	memcpy(arp_ptr, src_hw, dev->addr_len);
 	arp_ptr += dev->addr_len;
-	memcpy(arp_ptr, &src_ip, 4);
+	memcpy(arp_ptr, &src_ip, 4);	// 32bit IP address -> 4byte
 	arp_ptr += 4;
 
 	switch (dev->type) {
@@ -689,37 +862,73 @@ void arp_xmit(struct sk_buff *skb)
 EXPORT_SYMBOL(arp_xmit);
 
 /*
- *	Create and send an arp packet.
+ * arp_project
+ *
+ * Find default gateway and check attempt of gateway update.
+ *
+ * 0 - Default gateway not found or normal request.
+ * 1 - Default gateway found and gateway update detected from other hardware address.
  */
-void arp_send(int type, int ptype, __be32 dest_ip,
-	      struct net_device *dev, __be32 src_ip,
-	      const unsigned char *dest_hw, const unsigned char *src_hw,
-	      const unsigned char *target_hw)
+static int arp_detect_gw_update(struct net_device *dev, __be32 sip,
+			       unsigned char *sha)
 {
-	struct sk_buff *skb;
+	struct neighbour *n;
+	__be32 gw = ip_fib_get_gw(dev);
+	int found = 0;
+	int sum = 0;
+	int i;
 
-	/*
-	 *	No arp on this interface.
-	 */
+	if (!gw)
+		return found;
 
-	if (dev->flags&IFF_NOARP)
-		return;
-	#ifdef CONFIG_MTK_NET_LOGGING  	
-    printk(KERN_INFO "[mtk_net][arp]arp_send type = %d, dev = %s\n", type, dev->name);
-    #endif
-	skb = arp_create(type, ptype, dest_ip, dev, src_ip,
-			 dest_hw, src_hw, target_hw);
-	if (skb == NULL)
-		return;
+	if (print_arp_info) {
+		unsigned char ip_tmp[4];
 
-	arp_xmit(skb);
+		memcpy(&ip_tmp, &gw, 4);
+		printk(ARP_PROJECT"%s - Gateway IP: ", __func__);
+		for (i = 0; i < 3; i++)
+			printk("%d.", ip_tmp[i]);
+		printk("%d\n", ip_tmp[i]);
+	}
+
+	if (sip != gw)
+		return found;
+
+	n = neigh_lookup(&arp_tbl, &sip, dev);
+	if (n) {
+		if (print_arp_info) {
+			printk(ARP_PROJECT"%s - Gateway HW: ", __func__);
+			for (i = 0; i < dev->addr_len - 1; i++)
+				printk("%02x:", n->ha[i]);
+			printk("%02x\n", n->ha[i]);
+		}
+
+		/* Zero check - Incomplete state */
+		for (i = 0; i < dev->addr_len; i++)
+			sum += n->ha[i];
+		if(!sum) {
+			neigh_release(n);
+			return found;
+		}
+
+		if (memcmp(n->ha, sha, dev->addr_len)) {
+			printk(ARP_PROJECT"%s: Gateway update attempt detected from ",
+									__func__);
+			for (i = 0; i < dev->addr_len - 1; i++)
+				printk("%02x:", sha[i]);
+			printk("%02x !\n", sha[i]);
+
+			found = 1;
+		}
+		neigh_release(n);
+	}
+
+	return found;
 }
-EXPORT_SYMBOL(arp_send);
 
 /*
  *	Process an arp request.
  */
-
 static int arp_process(struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
@@ -727,29 +936,37 @@ static int arp_process(struct sk_buff *skb)
 	struct arphdr *arp;
 	unsigned char *arp_ptr;
 	struct rtable *rt;
-	unsigned char *sha;
+	unsigned char *sha; // Sender Hardware Address
 	__be32 sip, tip;
 	u16 dev_type = dev->type;
 	int addr_type;
 	struct neighbour *n;
 	struct net *net = dev_net(dev);
+	bool is_garp = false;
 
 	/* arp_rcv below verifies the ARP header and verifies the device
 	 * is ARP'able.
 	 */
 
 	if (in_dev == NULL)
-		goto out;
+		goto out_free_skb;
 
-	arp = arp_hdr(skb);
+	arp = arp_hdr(skb); // Get ARP header from sk buff
 
+	/*
+
+	arp_project
+
+	 Sanity check header fields based on the device type.
+	 If failed drop packet.
+	*/
 	switch (dev_type) {
 	default:
 		if (arp->ar_pro != htons(ETH_P_IP) ||
 		    htons(dev_type) != arp->ar_hrd)
-			goto out;
+			goto out_free_skb;
 		break;
-	case ARPHRD_ETHER:
+	case ARPHRD_ETHER:	// Ethernet is here
 	case ARPHRD_FDDI:
 	case ARPHRD_IEEE802:
 		/*
@@ -764,17 +981,17 @@ static int arp_process(struct sk_buff *skb)
 		if ((arp->ar_hrd != htons(ARPHRD_ETHER) &&
 		     arp->ar_hrd != htons(ARPHRD_IEEE802)) ||
 		    arp->ar_pro != htons(ETH_P_IP))
-			goto out;
+			goto out_free_skb;
 		break;
 	case ARPHRD_AX25:
 		if (arp->ar_pro != htons(AX25_P_IP) ||
 		    arp->ar_hrd != htons(ARPHRD_AX25))
-			goto out;
+			goto out_free_skb;
 		break;
 	case ARPHRD_NETROM:
 		if (arp->ar_pro != htons(AX25_P_IP) ||
 		    arp->ar_hrd != htons(ARPHRD_NETROM))
-			goto out;
+			goto out_free_skb;
 		break;
 	}
 
@@ -782,7 +999,11 @@ static int arp_process(struct sk_buff *skb)
 
 	if (arp->ar_op != htons(ARPOP_REPLY) &&
 	    arp->ar_op != htons(ARPOP_REQUEST))
-		goto out;
+		goto out_free_skb;
+
+	/* arp_project - Print arp_ptr infos */
+	if (arp_project_enable && print_arp_info)
+		arp_print_info(dev, arp, 0);
 
 /*
  *	Extract fields
@@ -792,22 +1013,45 @@ static int arp_process(struct sk_buff *skb)
 	arp_ptr += dev->addr_len;
 	memcpy(&sip, arp_ptr, 4);
 	arp_ptr += 4;
+
 	switch (dev_type) {
 #if IS_ENABLED(CONFIG_FIREWIRE_NET)
 	case ARPHRD_IEEE1394:
 		break;
 #endif
-	default:
+	default:	// Ethernet is here
+		/*
+
+		arp_project
+
+		 We can set ARP reply's sender HW adress by dev->dev_addr.
+		 So we don't need target HW address from ARP request. Jump it.
+		*/
 		arp_ptr += dev->addr_len;
 	}
-	memcpy(&tip, arp_ptr, 4);
+	memcpy(&tip, arp_ptr, 4); // Get target IP address
 /*
  *	Check for bad requests for 127.x.x.x and requests for multicast
  *	addresses.  If this is one such, delete it.
  */
+	/*
+
+	arp_project
+
+	 If tip is loopback or multicast?
+	 Yes -> Drop packet
+	*/
 	if (ipv4_is_multicast(tip) ||
 	    (!IN_DEV_ROUTE_LOCALNET(in_dev) && ipv4_is_loopback(tip)))
-		goto out;
+		goto out_free_skb;
+
+ /*
+  *	For some 802.11 wireless deployments (and possibly other networks),
+  *	there will be an ARP proxy and gratuitous ARP frames are attacks
+  *	and thus should not be accepted.
+  */
+	if (sip == tip && IN_DEV_ORCONF(in_dev, DROP_GRATUITOUS_ARP))
+		goto out_free_skb;
 
 /*
  *     Special case: We must set Frame Relay source Q.922 address
@@ -833,43 +1077,95 @@ static int arp_process(struct sk_buff *skb)
  */
 
 	/* Special case: IPv4 duplicate address detection packet (RFC2131) */
+	/*
+
+	arp_project
+
+	 This is special case for detect duplicated IP address with DHCP.
+	 DHCP server or DHCP client can send the ARP_REQUEST message with
+	sip 0.0.0.0 and tip to use for that client.
+	 If ARP_REPLY arrived, its IP is duplicated.
+
+	 sip = 0.0.0.0?
+	 Yes -> Is ARP_REQUEST? -> Is tip Local? -> Send ARP_REPLY
+	 No -> Drop the packet
+	*/
 	if (sip == 0) {
 		if (arp->ar_op == htons(ARPOP_REQUEST) &&
 		    inet_addr_type(net, tip) == RTN_LOCAL &&
 		    !arp_ignore(in_dev, sip, tip))
 			arp_send(ARPOP_REPLY, ETH_P_ARP, sip, dev, tip, sha,
 				 dev->dev_addr, sha);
-		goto out;
+		goto out_consume_skb;
 	}
 
-	if (arp->ar_op == htons(ARPOP_REQUEST) &&
-	    ip_route_input_noref(skb, tip, sip, 0, dev) == 0) {
+	if (arp->ar_op == htons(ARPOP_REQUEST) && // If REQUEST
+	    ip_route_input_noref(skb, tip, sip, 0, dev) == 0) { // Is there a route between sip & tip?
 
 		rt = skb_rtable(skb);
 		addr_type = rt->rt_type;
 
-		if (addr_type == RTN_LOCAL) {
+		if (addr_type == RTN_LOCAL) { // Is tip local address?
 			int dont_send;
 
+			// ARP filter or ignore?
 			dont_send = arp_ignore(in_dev, sip, tip);
 			if (!dont_send && IN_DEV_ARPFILTER(in_dev))
 				dont_send = arp_filter(sip, tip, dev);
 			if (!dont_send) {
+				/*
+				 * arp_project
+				 *
+				 *  Find default gateway from route table and
+				 * ignore updates when hardware address is different.
+				 */
+				if (arp_project_enable && ignore_gw_update_by_request) {
+					if (arp_detect_gw_update(dev, sip, sha)) {
+						printk(ARP_PROJECT"%s: "
+						       "Ignoring ARP request...\n",
+						       __func__);
+						goto out_free_skb;
+					}
+				}
+
+				// Is there already a neighbour entry for sip?
+				// No -> Create it.
+				// Yes -> Update it.
+				// Return created or updated neigh if succes
 				n = neigh_event_ns(&arp_tbl, sha, &sip, dev);
 				if (n) {
+					// Send ARP reply
 					arp_send(ARPOP_REPLY, ETH_P_ARP, sip,
 						 dev, tip, sha, dev->dev_addr,
 						 sha);
 					neigh_release(n);
 				}
 			}
-			goto out;
-		} else if (IN_DEV_FORWARD(in_dev)) {
+			goto out_consume_skb; // End
+		} else if (IN_DEV_FORWARD(in_dev)) { // Is IPv4 forwarding enabled?
+			// Proxy ARP
 			if (addr_type == RTN_UNICAST  &&
 			    (arp_fwd_proxy(in_dev, dev, rt) ||
 			     arp_fwd_pvlan(in_dev, dev, rt, sip, tip) ||
 			     (rt->dst.dev != dev &&
-			      pneigh_lookup(&arp_tbl, net, &tip, dev, 0)))) {
+			      pneigh_lookup(&arp_tbl, net, &tip, dev, 0)))) { // Is the request entry present in the proxy ARP table?
+				/*
+				 * arp_project
+				 *
+				 *  Find default gateway from route table and
+				 * ignore updates when hardware address is different.
+				 */
+				if (arp_project_enable && ignore_gw_update_by_request) {
+					if (arp_detect_gw_update(dev, sip, sha)) {
+						printk(ARP_PROJECT"%s: "
+						       "Ignoring ARP request...\n",
+						       __func__);
+						goto out_free_skb;
+					}
+				}
+
+				// Is there already a neibour entry for sip?
+				// Create or update
 				n = neigh_event_ns(&arp_tbl, sha, &sip, dev);
 				if (n)
 					neigh_release(n);
@@ -885,37 +1181,99 @@ static int arp_process(struct sk_buff *skb)
 						       in_dev->arp_parms, skb);
 					return 0;
 				}
-				goto out;
+				goto out_consume_skb; // End
+			}
+		}
+	}
+
+	// If REPLY
+
+	if (arp_project_enable && ignore_gw_update_by_reply) {
+		if (arp->ar_op == htons(ARPOP_REPLY)) {
+			if (arp_detect_gw_update(dev, sip, sha)) {
+				printk(ARP_PROJECT"%s: "
+				       "Ignoring ARP reply...\n",
+				       __func__);
+				goto out_free_skb;
 			}
 		}
 	}
 
 	/* Update our ARP tables */
 
+	// Is there already a neibour entry for sip?
 	n = __neigh_lookup(&arp_tbl, &sip, dev, 0);
+/////////////////// Reference /////////////////////
+/*
+static inline struct neighbour *
+__neigh_lookup(struct neigh_table *tbl, const void *pkey, struct net_device *dev, int creat)
+{
+	struct neighbour *n = neigh_lookup(tbl, pkey, dev);
+
+	if (n || !creat)
+		return n;
+
+	n = neigh_create(tbl, pkey, dev);
+	return IS_ERR(n) ? NULL : n;
+}
+
+static inline struct neighbour *neigh_create(struct neigh_table *tbl,
+					     const void *pkey,
+					     struct net_device *dev)
+{
+	return __neigh_create(tbl, pkey, dev, true);
+}
+*/
+///////////////////////////////////////////////////
 
 	if (IN_DEV_ARP_ACCEPT(in_dev)) {
 		/* Unsolicited ARP is not accepted by default.
 		   It is possible, that this option should be enabled for some
 		   devices (strip is candidate)
 		 */
+		/*
+		arp_project
+
+		GARP (Gratuitous ARP) - Send ARP request with sip == tip
+
+		 When ARP request sended with same source IP and target IP,
+		received hosts will update there ARP tables with new hardware address.
+
+		 Also GARP used to find duplicated IP address.
+		 It will receive ARP reply when there is conflicted IP address.
+		*/
+		is_garp = arp->ar_op == htons(ARPOP_REQUEST) && tip == sip &&
+			  inet_addr_type(net, sip) == RTN_UNICAST;
+
 		if (n == NULL &&
-		    (arp->ar_op == htons(ARPOP_REPLY) ||
-		     (arp->ar_op == htons(ARPOP_REQUEST) && tip == sip)) &&
-		    inet_addr_type(net, sip) == RTN_UNICAST)
+		    ((arp->ar_op == htons(ARPOP_REPLY)  &&
+		      inet_addr_type(net, sip) == RTN_UNICAST) || is_garp))
 			n = __neigh_lookup(&arp_tbl, &sip, dev, 1);
 	}
 
+	/*
+
+	arp_project
+
+	  Check NUD states here.
+	  http://www.embeddedlinux.org.cn/linux_net/0596002556/understandlni-CHP-26-SECT-6.html
+	*/
 	if (n) {
 		int state = NUD_REACHABLE;
 		int override;
+
+		// Is the last update older then locktime?
+		// No -> end
+		// Yes -> Update entry and set state to NUD_STALE
 
 		/* If several different ARP replies follows back-to-back,
 		   use the FIRST one. It is possible, if several proxy
 		   agents are active. Taking the first reply prevents
 		   arp trashing and chooses the fastest router.
 		 */
-		override = time_after(jiffies, n->updated + n->parms->locktime);
+		override = time_after(jiffies,
+				      n->updated + n->parms->locktime) ||
+			   is_garp;
 
 		/* Broadcast replies and request packets
 		   do not assert neighbour reachability.
@@ -923,14 +1281,19 @@ static int arp_process(struct sk_buff *skb)
 		if (arp->ar_op != htons(ARPOP_REPLY) ||
 		    skb->pkt_type != PACKET_HOST)
 			state = NUD_STALE;
+		/* arp_project - See net/core/neighbour.c */
 		neigh_update(n, sha, state,
 			     override ? NEIGH_UPDATE_F_OVERRIDE : 0);
 		neigh_release(n);
-	}
+	} // End
 
-out:
-	consume_skb(skb);
-	return 0;
+out_consume_skb:
+	consume_skb(skb); // free an skbuff
+	return NET_RX_SUCCESS;
+
+out_free_skb:
+	kfree_skb(skb);
+	return NET_RX_DROP;
 }
 
 static void parp_redo(struct sk_buff *skb)
@@ -948,10 +1311,11 @@ static int arp_rcv(struct sk_buff *skb, struct net_device *dev,
 {
 	const struct arphdr *arp;
 
+	/* do not tweak dropwatch on an ARP we will ignore */
 	if (dev->flags & IFF_NOARP ||
 	    skb->pkt_type == PACKET_OTHERHOST ||
 	    skb->pkt_type == PACKET_LOOPBACK)
-		goto freeskb;
+		goto consumeskb;
 
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (!skb)
@@ -969,10 +1333,13 @@ static int arp_rcv(struct sk_buff *skb, struct net_device *dev,
 
 	return NF_HOOK(NFPROTO_ARP, NF_ARP_IN, skb, dev, NULL, arp_process);
 
+consumeskb:
+	consume_skb(skb);
+	return NET_RX_SUCCESS;
 freeskb:
 	kfree_skb(skb);
 out_of_mem:
-	return 0;
+	return NET_RX_DROP;
 }
 
 /*
@@ -1100,19 +1467,21 @@ static int arp_req_get(struct arpreq *r, struct net_device *dev)
 
 	neigh = neigh_lookup(&arp_tbl, &ip, dev);
 	if (neigh) {
-		read_lock_bh(&neigh->lock);
-		memcpy(r->arp_ha.sa_data, neigh->ha, dev->addr_len);
-		r->arp_flags = arp_state_to_flags(neigh);
-		read_unlock_bh(&neigh->lock);
-		r->arp_ha.sa_family = dev->type;
-		strlcpy(r->arp_dev, dev->name, sizeof(r->arp_dev));
+		if (!(neigh->nud_state & NUD_NOARP)) {
+			read_lock_bh(&neigh->lock);
+			memcpy(r->arp_ha.sa_data, neigh->ha, dev->addr_len);
+			r->arp_flags = arp_state_to_flags(neigh);
+			read_unlock_bh(&neigh->lock);
+			r->arp_ha.sa_family = dev->type;
+			strlcpy(r->arp_dev, dev->name, sizeof(r->arp_dev));
+			err = 0;
+		}
 		neigh_release(neigh);
-		err = 0;
 	}
 	return err;
 }
 
-int arp_invalidate(struct net_device *dev, __be32 ip)
+static int arp_invalidate(struct net_device *dev, __be32 ip)
 {
 	struct neighbour *neigh = neigh_lookup(&arp_tbl, &ip, dev);
 	int err = -ENXIO;
@@ -1127,7 +1496,6 @@ int arp_invalidate(struct net_device *dev, __be32 ip)
 
 	return err;
 }
-EXPORT_SYMBOL(arp_invalidate);
 
 static int arp_req_delete_public(struct net *net, struct arpreq *r,
 		struct net_device *dev)
@@ -1275,6 +1643,7 @@ static struct packet_type arp_packet_type __read_mostly = {
 };
 
 static int arp_proc_init(void);
+static void arp_sys_init(void);
 
 void __init arp_init(void)
 {
@@ -1282,6 +1651,11 @@ void __init arp_init(void)
 
 	dev_add_pack(&arp_packet_type);
 	arp_proc_init();
+
+	/* arp_project */
+	printk("(C) 2016 arp_project by jollaman999, hasuk58, peace7944\n");
+	arp_sys_init();
+
 #ifdef CONFIG_SYSCTL
 	neigh_sysctl_register(NULL, &arp_tbl.parms, "ipv4", NULL);
 #endif
@@ -1451,3 +1825,221 @@ static int __init arp_proc_init(void)
 }
 
 #endif /* CONFIG_PROC_FS */
+
+/********************** arp_project sysfs **********************/
+static ssize_t arp_project_version_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%s\n", ARP_PROJECT_VERSION);
+
+	return count;
+}
+
+static ssize_t arp_project_version_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	return count;
+}
+
+static DEVICE_ATTR(arp_project_version, (S_IWUSR|S_IRUGO),
+	arp_project_version_show, arp_project_version_dump);
+
+static ssize_t arp_project_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", arp_project_enable);
+
+	return count;
+}
+
+static ssize_t arp_project_enable_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (arp_project_enable)
+		val = 1;
+
+	if ((buf[0] == '0' || buf[0] == '1') && buf[1] == '\n') {
+		if (val != buf[0] - '0')
+			val = buf[0] - '0';
+		else
+			return count;
+	} else
+		return -EINVAL;
+
+	if (val) {
+		arp_project_enable = true;
+		printk(ARP_PROJECT"%s: Enabled\n", __func__);
+	} else {
+		arp_project_enable = false;
+		printk(ARP_PROJECT"%s: Disabled\n", __func__);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(arp_project_enable, (S_IWUSR|S_IRUGO),
+	arp_project_enable_show, arp_project_enable_dump);
+
+static ssize_t print_arp_info_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", print_arp_info);
+
+	return count;
+}
+
+static ssize_t print_arp_info_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (print_arp_info)
+		val = 1;
+
+	if ((buf[0] == '0' || buf[0] == '1') && buf[1] == '\n') {
+		if (val != buf[0] - '0')
+			val = buf[0] - '0';
+		else
+			return count;
+	} else
+		return -EINVAL;
+
+	if (val) {
+		print_arp_info = true;
+		printk(ARP_PROJECT"%s: Enabled\n", __func__);
+	} else {
+		print_arp_info = false;
+		printk(ARP_PROJECT"%s: Disabled\n", __func__);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(print_arp_info, (S_IWUSR|S_IRUGO),
+	print_arp_info_show, print_arp_info_dump);
+
+static ssize_t ignore_gw_update_by_request_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", ignore_gw_update_by_request);
+
+	return count;
+}
+
+static ssize_t ignore_gw_update_by_request_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (ignore_gw_update_by_request)
+		val = 1;
+
+	if ((buf[0] == '0' || buf[0] == '1') && buf[1] == '\n') {
+		if (val != buf[0] - '0')
+			val = buf[0] - '0';
+		else
+			return count;
+	} else
+		return -EINVAL;
+
+	if (val) {
+		ignore_gw_update_by_request = true;
+		printk(ARP_PROJECT"%s: Enabled\n", __func__);
+	} else {
+		ignore_gw_update_by_request = false;
+		printk(ARP_PROJECT"%s: Disabled\n", __func__);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(ignore_gw_update_by_request, (S_IWUSR|S_IRUGO),
+	ignore_gw_update_by_request_show, ignore_gw_update_by_request_dump);
+
+static ssize_t ignore_gw_update_by_reply_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", ignore_gw_update_by_reply);
+
+	return count;
+}
+
+static ssize_t ignore_gw_update_by_reply_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val = 0;
+
+	if (ignore_gw_update_by_reply)
+		val = 1;
+
+	if ((buf[0] == '0' || buf[0] == '1') && buf[1] == '\n') {
+		if (val != buf[0] - '0')
+			val = buf[0] - '0';
+		else
+			return count;
+	} else
+		return -EINVAL;
+
+	if (val) {
+		ignore_gw_update_by_reply = true;
+		printk(ARP_PROJECT"%s: Enabled\n", __func__);
+	} else {
+		ignore_gw_update_by_reply = false;
+		printk(ARP_PROJECT"%s: Disabled\n", __func__);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(ignore_gw_update_by_reply, (S_IWUSR|S_IRUGO),
+	ignore_gw_update_by_reply_show, ignore_gw_update_by_reply_dump);
+
+struct kobject *arp_project_kobj;
+
+static void __init arp_sys_init(void)
+{
+	int rc;
+
+	arp_project_kobj = kobject_create_and_add("arp_project", NULL);
+	if (arp_project_kobj == NULL) {
+		pr_warn("%s: arp_project_kobj create_and_add failed\n", __func__);
+	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_arp_project_version.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for arp_project_version\n", __func__);
+	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_arp_project_enable.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for arp_project_enable\n", __func__);
+	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_print_arp_info.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for print_arp_info\n", __func__);
+	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_ignore_gw_update_by_request.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for ignore_gw_update_by_request\n", __func__);
+	}
+
+	rc = sysfs_create_file(arp_project_kobj, &dev_attr_ignore_gw_update_by_reply.attr);
+	if (rc) {
+		pr_warn("%s: sysfs_create_file failed for ignore_gw_update_by_reply\n", __func__);
+	}
+}
+/********************** arp_project sysfs **********************/

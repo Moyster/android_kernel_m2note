@@ -61,4 +61,4 @@ obj-$(CONFIG_LATTICE_ECP3_CONFIG)	+= lattice-ecp3-config.o
 obj-$(CONFIG_SRAM)		+= sram.o
 obj-$(CONFIG_MEDIATEK_SOLUTION) += mediatek/
 obj-$(CONFIG_LTR559) += ltr559.o
-obj-$(CONFIG_UID_CPUTIME) += uid_cputime.o
+obj-$(CONFIG_UID_SYS_STATS) += uid_sys_stats.o

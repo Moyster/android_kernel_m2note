@@ -402,16 +402,16 @@ static void wakeup_source_activate(struct wakeup_source *ws)
 {
 	unsigned int cec;
 	
-	if (!enable_si_ws && !strcmp(ws->name, "sensor_ind"))
+	if (!enable_si_ws && !strncmp(ws->name, "sensor_ind"))
 		return;
 
-	if (!enable_wlan_rx_wake_ws && !strcmp(ws->name, "wlan_rx_wake"))
+	if (!enable_wlan_rx_wake_ws && !strncmp(ws->name, "wlan_rx_wake"))
 		return;
 
-	if (!enable_wlan_ctrl_wake_ws && !strcmp(ws->name, "wlan_ctrl_wake"))
+	if (!enable_wlan_ctrl_wake_ws && !strncmp(ws->name, "wlan_ctrl_wake"))
 		return;
 
-	if (!enable_wlan_wake_ws && !strcmp(ws->name, "wlan_wake"))
+	if (!enable_wlan_wake_ws && !strncmp(ws->name, "wlan_wake"))
 		return;
 
 	/*

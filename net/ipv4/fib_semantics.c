@@ -351,6 +351,34 @@ int ip_fib_check_default(__be32 gw, struct net_device *dev)
 	return -1;
 }
 
+/*
+ * arp_project
+ *
+ * Get gateway address from net_device.
+ */
+__be32 ip_fib_get_gw(struct net_device *dev)
+{
+	struct hlist_head *head;
+	struct fib_nh *nh;
+	unsigned int hash;
+
+	spin_lock(&fib_info_lock);
+
+	hash = fib_devindex_hashfn(dev->ifindex);
+	head = &fib_info_devhash[hash];
+	hlist_for_each_entry(nh, head, nh_hash) {
+		if (nh->nh_dev == dev) {
+			spin_unlock(&fib_info_lock);
+			return nh->nh_gw;
+		}
+	}
+
+	spin_unlock(&fib_info_lock);
+
+	return 0;
+}
+EXPORT_SYMBOL(ip_fib_get_gw);
+
 static inline size_t fib_nlmsg_size(struct fib_info *fi)
 {
 	size_t payload = NLMSG_ALIGN(sizeof(struct rtmsg))
