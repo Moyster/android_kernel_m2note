@@ -142,7 +142,7 @@ void fixup_perms_recursive(struct dentry *dentry, const char* name, size_t len) 
 
 	if (needs_fixup(info->perm)) {
 		spin_lock(&dentry->d_lock);
-		list_for_each_entry(child, &dentry->d_subdirs, d_u.d_child) {
+		list_for_each_entry(child, &dentry->d_subdirs, d_child) {
 				dget(child);
 				if (!strncasecmp(child->d_name.name, name, len)) {
 					if (child->d_inode) {
@@ -157,7 +157,7 @@ void fixup_perms_recursive(struct dentry *dentry, const char* name, size_t len) 
 		spin_unlock(&dentry->d_lock);
 	} else 	if (descendant_may_need_fixup(info->perm)) {
 		spin_lock(&dentry->d_lock);
-		list_for_each_entry(child, &dentry->d_subdirs, d_u.d_child) {
+		list_for_each_entry(child, &dentry->d_subdirs, d_child) {
 				fixup_perms_recursive(child, name, len);
 		}
 		spin_unlock(&dentry->d_lock);
