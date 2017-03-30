@@ -297,7 +297,7 @@ void drop_recursive(struct dentry *parent) {
 		return;
 	info = SDCARDFS_I(parent->d_inode);
 	spin_lock(&parent->d_lock);
-	list_for_each_entry(dentry, &parent->d_subdirs, d_u.d_child) {
+	list_for_each_entry(dentry, &parent->d_subdirs, d_child) {
 		if (dentry->d_inode) {
 			if (SDCARDFS_I(parent->d_inode)->top != SDCARDFS_I(dentry->d_inode)->top) {
 				drop_recursive(dentry);
