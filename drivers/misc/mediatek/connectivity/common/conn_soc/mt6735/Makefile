@@ -3,7 +3,8 @@ ccflags-y += \
 	-I$(src)/include \
 	-I$(src)/../linux/include \
 	-I$(src)/../include \
-	-I$(src)/../../common_detect
+        -I$(src)/../../common_detect \
+        -I$(DRVGEN_OUT)/inc
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include/mach
