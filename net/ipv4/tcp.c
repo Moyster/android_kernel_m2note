@@ -3576,7 +3576,7 @@ int tcp_nuke_addr(struct net *net, struct sockaddr *addr)
 	}
 		/*mtk_net:debug log*/
   printk(KERN_INFO "[mtk_net][tcp]tcp_nuke_addr: tcp_hashinfo.ehash_mask = %d\n",tcp_hashinfo.ehash_mask);
-	for (bucket = 0; bucket <= tcp_hashinfo.ehash_mask; bucket++) {
+	for (bucket = 0; bucket < tcp_hashinfo.ehash_mask; bucket++) {
 		struct hlist_nulls_node *node;
 		struct sock *sk;
 		spinlock_t *lock = inet_ehash_lockp(&tcp_hashinfo, bucket);
