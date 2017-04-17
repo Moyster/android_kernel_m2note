@@ -1,18 +1,16 @@
 
-
 #define DFT_TAG "[CONN_MD_DMP]"
 
 #include "conn_md_log.h"
 #include "conn_md_dump.h"
 
-
 P_CONN_MD_DMP_MSG_LOG conn_md_dmp_init(void)
 {
 	uint32 msg_log_size = sizeof(CONN_MD_DMP_MSG_LOG);
 	P_CONN_MD_DMP_MSG_LOG p_msg_log = vmalloc(msg_log_size);
+
 	if (NULL != p_msg_log) {
-		CONN_MD_INFO_FUNC("alloc memory for msg log system done, size:0x%08x\n",
-				  msg_log_size);
+		CONN_MD_INFO_FUNC("alloc memory for msg log system done, size:0x%08x\n", msg_log_size);
 		memset(p_msg_log, 0, msg_log_size);
 
 		mutex_init(&p_msg_log->lock);
@@ -26,8 +24,9 @@ P_CONN_MD_DMP_MSG_LOG conn_md_dmp_init(void)
 int conn_md_dmp_deinit(P_CONN_MD_DMP_MSG_LOG p_log)
 {
 	int i_ret = -1;
+
 	if (NULL != p_log) {
-		CONN_MD_INFO_FUNC("vaild log buffer pointer:0x%08x, free it.\n", p_log);
+		CONN_MD_INFO_FUNC("valid log buffer pointer:0x%08x, free it.\n", p_log);
 		mutex_destroy(&p_log->lock);
 		vfree(p_log);
 		i_ret = 0;
@@ -76,10 +75,9 @@ int __conn_md_dmp_in(ipc_ilm_t *p_ilm, CONN_MD_MSG_TYPE msg_type, P_CONN_MD_DMP_
 	p_msg_log->in %= NUMBER_OF_MSG_LOGGED;
 
 	mutex_unlock(&p_msg_log->lock);
-	CONN_MD_WARN_FUNC("msg type:%d enqueued succeed\n", msg_type);
+	CONN_MD_DBG_FUNC("msg type:%d enqueued succeed\n", msg_type);
 	return 0;
 }
-
 
 int conn_md_dmp_in(ipc_ilm_t *p_ilm, CONN_MD_MSG_TYPE msg_type, P_CONN_MD_DMP_MSG_LOG p_msg_log)
 {
@@ -87,8 +85,7 @@ int conn_md_dmp_in(ipc_ilm_t *p_ilm, CONN_MD_MSG_TYPE msg_type, P_CONN_MD_DMP_MS
 
 	if (NULL == p_ilm ||
 	    NULL == p_ilm->local_para_ptr ||
-	    0 == p_ilm->local_para_ptr->msg_len ||
-	    (msg_type != MSG_ENQUEUE && msg_type != MSG_DEQUEUE)) {
+	    0 == p_ilm->local_para_ptr->msg_len || (msg_type != MSG_ENQUEUE && msg_type != MSG_DEQUEUE)) {
 		CONN_MD_WARN_FUNC("invalid parameter\n");
 		i_ret = CONN_MD_ERR_INVALID_PARAM;
 	} else {
@@ -102,15 +99,13 @@ int __conn_md_dmp_msg_filter(P_CONN_MD_DMP_MSG_STR p_msg, uint32 src_id, uint32 
 	ipc_ilm_t *p_ilm = &p_msg->ilm;
 	int i = 0;
 
-	if (((0 == src_id) || (src_id == p_ilm->src_mod_id)) &&
-	    ((0 == dst_id) || (dst_id == p_ilm->dest_mod_id))) {
+	if (((0 == src_id) || (src_id == p_ilm->src_mod_id)) && ((0 == dst_id) || (dst_id == p_ilm->dest_mod_id))) {
 		__conn_md_log_print(DFT_TAG
 				    "%d.%d s, <%s> src_id:0x%08x, dst_id:0x%08x, msg_len:%d, dump_len:%d:\n",
 				    p_msg->sec, p_msg->usec,
 				    (MSG_ENQUEUE == p_msg->type ? "enqueue" : "dequeue"),
 				    p_msg->ilm.src_mod_id, p_msg->ilm.dest_mod_id, p_msg->msg_len,
-				    (LENGTH_PER_PACKAGE >=
-				     p_msg->msg_len ? p_msg->msg_len : LENGTH_PER_PACKAGE));
+				    (LENGTH_PER_PACKAGE >= p_msg->msg_len ? p_msg->msg_len : LENGTH_PER_PACKAGE));
 
 		for (i = 0; (i < p_msg->msg_len) && (i < LENGTH_PER_PACKAGE); i++) {
 			__conn_md_log_print("%02x ", p_msg->data[i]);
@@ -121,7 +116,6 @@ int __conn_md_dmp_msg_filter(P_CONN_MD_DMP_MSG_STR p_msg, uint32 src_id, uint32 
 	}
 	return 0;
 }
-
 
 int conn_md_dmp_out(P_CONN_MD_DMP_MSG_LOG p_msg_log, uint32 src_id, uint32 dst_id)
 {
@@ -142,11 +136,10 @@ int conn_md_dmp_out(P_CONN_MD_DMP_MSG_LOG p_msg_log, uint32 src_id, uint32 dst_i
 		return CONN_MD_ERR_INVALID_PARAM;
 	}
 	CONN_MD_INFO_FUNC("dump msg for <src_id:0x%08x, dst_id:0x%08x> start\n", src_id, dst_id);
-	if (NUMBER_OF_MSG_LOGGED == size) {
+	if (NUMBER_OF_MSG_LOGGED == size)
 		out = in;
-	} else {
+	else
 		out = 0;
-	}
 
 	while (size--) {
 		p_msg = &p_msg_log->msg[out];

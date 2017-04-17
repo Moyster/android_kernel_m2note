@@ -1,11 +1,8 @@
 #ifndef __CONN_MD_H_
 #define __CONN_MD_H_
 
-
-
 #include "conn_md_exp.h"
 #include "conn_md_dump.h"
-
 
 /*-----------------------Data Structure Definition-----------------------*/
 
@@ -25,20 +22,17 @@ typedef struct _CONN_MD_USER_ {
 	struct list_head entry;
 } CONN_MD_USER, *P_CONN_MD_USER;
 
-
 typedef struct _CONN_MD_MSG_ {
 	ipc_ilm_t ilm;
 	struct list_head entry;
 	local_para_struct local_para;
 } CONN_MD_MSG, *P_CONN_MD_MSG;
 
-
 typedef struct _CONN_MD_QUEUE_ {
 	struct list_head list;
 	struct mutex lock;
 	uint32 counter;
 } CONN_MD_QUEUE, *P_CONN_MD_QUEUE;
-
 
 typedef struct _CONN_MD_USER_LIST_ {
 	uint32 counter;
@@ -64,6 +58,5 @@ extern int conn_md_add_user(uint32 u_id, CONN_MD_BRIDGE_OPS *p_ops);
 extern int conn_md_dmp_msg_logged(uint32 src_id, uint32 dst_id);
 extern int conn_md_dmp_msg_active(uint32 src_id, uint32 dst_id);
 extern int conn_md_dmp_msg_queued(uint32 src_id, uint32 dst_id);
-
 
 #endif

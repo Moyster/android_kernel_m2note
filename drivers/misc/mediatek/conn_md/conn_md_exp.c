@@ -6,9 +6,6 @@
 
 #include "conn_md.h"
 
-
-
-
 int mtk_conn_md_bridge_reg(uint32 u_id, CONN_MD_BRIDGE_OPS *p_ops)
 {
 
@@ -23,9 +20,9 @@ int mtk_conn_md_bridge_reg(uint32 u_id, CONN_MD_BRIDGE_OPS *p_ops)
 		i_ret = CONN_MD_ERR_INVALID_PARAM;
 	}
 
-
 	return i_ret;
 }
+EXPORT_SYMBOL(mtk_conn_md_bridge_reg);
 
 int mtk_conn_md_bridge_unreg(uint32 u_id)
 {
@@ -36,7 +33,7 @@ int mtk_conn_md_bridge_unreg(uint32 u_id)
 	i_ret = conn_md_del_user(u_id);
 	return 0;
 }
-
+EXPORT_SYMBOL(mtk_conn_md_bridge_unreg);
 int mtk_conn_md_bridge_send_msg(ipc_ilm_t *ilm)
 {
 	int i_ret = -1;
@@ -52,6 +49,4 @@ int mtk_conn_md_bridge_send_msg(ipc_ilm_t *ilm)
 
 	return 0;
 }
-EXPORT_SYMBOL(mtk_conn_md_bridge_reg);
-EXPORT_SYMBOL(mtk_conn_md_bridge_unreg);
 EXPORT_SYMBOL(mtk_conn_md_bridge_send_msg);

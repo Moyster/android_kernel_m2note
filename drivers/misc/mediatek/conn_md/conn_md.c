@@ -9,7 +9,6 @@ CONN_MD_STRUCT g_conn_md;
 static int _conn_md_del_msg_by_uid(uint32 u_id);
 static int conn_md_dmp_msg(P_CONN_MD_QUEUE p_msg_list, uint32 src_id, uint32 dst_id);
 
-
 int conn_md_add_user(uint32 u_id, CONN_MD_BRIDGE_OPS *p_ops)
 {
 	P_CONN_MD_USER p_user = NULL;
@@ -26,8 +25,7 @@ int conn_md_add_user(uint32 u_id, CONN_MD_BRIDGE_OPS *p_ops)
 		if (p_user->u_id == u_id) {
 			/*if yes */
 			/*print warning information */
-			CONN_MD_WARN_FUNC
-			    ("uid (0x%08x) is already registered, updating with newer one\n", u_id);
+			CONN_MD_WARN_FUNC("uid (0x%08x) is already registered, updating with newer one\n", u_id);
 			break;
 		}
 		p_user = NULL;
@@ -122,10 +120,8 @@ int conn_md_dmp_msg(P_CONN_MD_QUEUE p_msg_list, uint32 src_id, uint32 dst_id)
 			counter++;
 			CONN_MD_INFO_FUNC
 			    ("p_msg:0x%08x, src_id:0x%08x, dest_id:0x%08x, msg_len:%d\n", p_msg,
-			     p_msg->ilm.src_mod_id, p_msg->ilm.dest_mod_id,
-			     p_msg->local_para.msg_len);
-			for (i = 0; (i < p_msg->local_para.msg_len) && (i < MAX_LENGTH_PER_PACKAGE);
-			     i++) {
+			     p_msg->ilm.src_mod_id, p_msg->ilm.dest_mod_id, p_msg->local_para.msg_len);
+			for (i = 0; (i < p_msg->local_para.msg_len) && (i < MAX_LENGTH_PER_PACKAGE); i++) {
 				CONN_MD_INFO_FUNC("%02x ", p_msg->local_para.data[i]);
 				if (7 == (i % 8))
 					CONN_MD_INFO_FUNC("\n");
@@ -140,7 +136,6 @@ int conn_md_dmp_msg(P_CONN_MD_QUEUE p_msg_list, uint32 src_id, uint32 dst_id)
 	return 0;
 }
 
-
 int _conn_md_del_msg_by_uid(uint32 u_id)
 {
 	/*only delete messaged enqueued in queue list, do not care message in active queue list */
@@ -149,6 +144,7 @@ int _conn_md_del_msg_by_uid(uint32 u_id)
 	struct list_head *pos = NULL;
 	P_CONN_MD_MSG p_msg = NULL;
 	int flag = 1;
+
 	CONN_MD_TRC_FUNC();
 	mutex_lock(&p_msg_list->lock);
 	while (flag) {
@@ -170,8 +166,7 @@ int _conn_md_del_msg_by_uid(uint32 u_id)
 			p_msg_list->counter--;
 			list_del(pos);
 			kfree(p_msg);
-			CONN_MD_DBG_FUNC("dequeued in queue list, counter:%d\n",
-					 p_msg_list->counter);
+			CONN_MD_DBG_FUNC("dequeued in queue list, counter:%d\n", p_msg_list->counter);
 		}
 
 	}
@@ -179,7 +174,6 @@ int _conn_md_del_msg_by_uid(uint32 u_id)
 	CONN_MD_TRC_FUNC();
 	return 0;
 }
-
 
 int conn_md_send_msg(ipc_ilm_t *ilm)
 {
@@ -209,8 +203,7 @@ int conn_md_send_msg(ipc_ilm_t *ilm)
 		/*copy data from local_para_ptr structure */
 		memcpy(p_local_para->data, ilm->local_para_ptr->data, msg_info_len);
 
-		CONN_MD_DBG_FUNC("p_local_para:0x%08x, msg_len:%d\n", p_local_para,
-				 p_local_para->msg_len);
+		CONN_MD_DBG_FUNC("p_local_para:0x%08x, msg_len:%d\n", p_local_para, p_local_para->msg_len);
 
 		INIT_LIST_HEAD(&p_new_msg->entry);
 
@@ -225,8 +218,7 @@ int conn_md_send_msg(ipc_ilm_t *ilm)
 		mutex_unlock(&p_msg_list->lock);
 
 		CONN_MD_DBG_FUNC
-		    ("enqueue new message to msg queue list succeed, enqueued msg counter:%d\n",
-		     p_msg_list->counter);
+		    ("enqueue new message to msg queue list succeed, enqueued msg counter:%d\n", p_msg_list->counter);
 
 		conn_md_dmp_in(ilm, MSG_ENQUEUE, p_conn_md->p_msg_dmp_sys);
 
@@ -242,7 +234,6 @@ int conn_md_send_msg(ipc_ilm_t *ilm)
 
 	return 0;
 }
-
 
 #define ACT_QUEUE_DBG 0
 
@@ -300,8 +291,7 @@ static int conn_md_thread(void *p_data)
 				kfree(p_msg);
 
 				p_act_queue->counter++;
-				CONN_MD_DBG_FUNC("dequeued in act queue counter:%d\n",
-						 p_act_queue->counter);
+				CONN_MD_DBG_FUNC("dequeued in act queue counter:%d\n", p_act_queue->counter);
 #endif
 				continue;
 			}
@@ -313,11 +303,9 @@ static int conn_md_thread(void *p_data)
 			/*check if src module is enabled or not */
 			list_for_each(p_user_pos, &p_user_list->list) {
 				p_user = container_of(p_user_pos, CONN_MD_USER, entry);
-				if (p_user->u_id == p_cur_ilm->src_mod_id
-				    && p_user->state == USER_ENABLED) {
+				if (p_user->u_id == p_cur_ilm->src_mod_id && p_user->state == USER_ENABLED) {
 					/*src module id is enabled already */
-					CONN_MD_DBG_FUNC("source user id (0x%08x) found\n",
-							 p_cur_ilm->src_mod_id);
+					CONN_MD_DBG_FUNC("source user id (0x%08x) found\n", p_cur_ilm->src_mod_id);
 					break;
 				}
 				p_user = NULL;
@@ -333,8 +321,7 @@ static int conn_md_thread(void *p_data)
 				list_del(pos);
 				kfree(p_msg);
 				p_act_queue->counter++;
-				CONN_MD_DBG_FUNC("dequeued in act queue counter:%d\n",
-						 p_act_queue->counter);
+				CONN_MD_DBG_FUNC("dequeued in act queue counter:%d\n", p_act_queue->counter);
 #endif
 
 				continue;
@@ -343,10 +330,8 @@ static int conn_md_thread(void *p_data)
 			/*check if destination module is enabled or not */
 			list_for_each(p_user_pos, &p_user_list->list) {
 				p_user = container_of(p_user_pos, CONN_MD_USER, entry);
-				if (p_user->u_id == p_cur_ilm->dest_mod_id
-				    && p_user->state == USER_ENABLED) {
-					CONN_MD_DBG_FUNC("target user id (0x%08x) found\n",
-							 p_cur_ilm->dest_mod_id);
+				if (p_user->u_id == p_cur_ilm->dest_mod_id && p_user->state == USER_ENABLED) {
+					CONN_MD_DBG_FUNC("target user id (0x%08x) found\n", p_cur_ilm->dest_mod_id);
 					/*src module id is enabled already */
 					break;
 				}
@@ -364,20 +349,16 @@ static int conn_md_thread(void *p_data)
 				list_del(pos);
 				kfree(p_msg);
 				p_act_queue->counter++;
-				CONN_MD_DBG_FUNC("dequeued in act queue counter:%d\n",
-						 p_act_queue->counter);
+				CONN_MD_DBG_FUNC("dequeued in act queue counter:%d\n", p_act_queue->counter);
 #endif
 				continue;
 			}
 			CONN_MD_DBG_FUNC("p_cur_ilm:0x%08x, local_para_ptr:0x%08x, msg_len:%d\n",
-					 p_cur_ilm, &p_cur_ilm->local_para_ptr,
-					 p_cur_ilm->local_para_ptr->msg_len);
-			CONN_MD_DBG_FUNC("sending message to user id (0x%08x)\n",
-					 p_cur_ilm->dest_mod_id);
+					 p_cur_ilm, &p_cur_ilm->local_para_ptr, p_cur_ilm->local_para_ptr->msg_len);
+			CONN_MD_DBG_FUNC("sending message to user id (0x%08x)\n", p_cur_ilm->dest_mod_id);
 			/*send package to dest module by call corresponding rx callback function */
 			(*(p_user->ops.rx_cb)) (p_cur_ilm);
-			CONN_MD_DBG_FUNC("message sent to user id (0x%08x) done\n",
-					 p_cur_ilm->dest_mod_id);
+			CONN_MD_DBG_FUNC("message sent to user id (0x%08x) done\n", p_cur_ilm->dest_mod_id);
 			mutex_unlock(&p_user_list->lock);
 
 #if (ACT_QUEUE_DBG == 1)
@@ -387,8 +368,7 @@ static int conn_md_thread(void *p_data)
 			CONN_MD_DBG_FUNC("message structure freed\n");
 
 			p_act_queue->counter++;
-			CONN_MD_DBG_FUNC("dequeued in act queue counter:%d\n",
-					 p_act_queue->counter);
+			CONN_MD_DBG_FUNC("dequeued in act queue counter:%d\n", p_act_queue->counter);
 #endif
 		}
 		p_msg = NULL;
@@ -396,15 +376,14 @@ static int conn_md_thread(void *p_data)
 		while (!list_empty(&p_act_queue->list)) {
 			list_for_each(pos, &p_act_queue->list) {
 				p_msg = container_of(pos, CONN_MD_MSG, entry);
-				/*free message structure*/
+				/*free message structure */
 				list_del(pos);
 				kfree(p_msg);
 				p_msg = NULL;
 				CONN_MD_DBG_FUNC("message structure freed\n");
 
 				p_act_queue->counter++;
-				CONN_MD_DBG_FUNC("dequeued in act queue counter:%d\n",
-						 p_act_queue->counter);
+				CONN_MD_DBG_FUNC("dequeued in act queue counter:%d\n", p_act_queue->counter);
 				break;
 			}
 
@@ -422,18 +401,15 @@ int conn_md_dmp_msg_queued(uint32 src_id, uint32 dst_id)
 	return conn_md_dmp_msg(&g_conn_md.msg_queue, src_id, dst_id);
 }
 
-
 int conn_md_dmp_msg_active(uint32 src_id, uint32 dst_id)
 {
 	return conn_md_dmp_msg(&g_conn_md.act_queue, src_id, dst_id);
 }
 
-
 int conn_md_dmp_msg_logged(uint32 src_id, uint32 dst_id)
 {
 	return conn_md_dmp_out(g_conn_md.p_msg_dmp_sys, src_id, dst_id);
 }
-
 
 static int conn_md_init(void)
 {
@@ -465,11 +441,10 @@ static int conn_md_init(void)
 	CONN_MD_INFO_FUNC("init user information list succeed\n");
 
 	g_conn_md.p_msg_dmp_sys = conn_md_dmp_init();
-	if (NULL == g_conn_md.p_msg_dmp_sys) {
+	if (NULL == g_conn_md.p_msg_dmp_sys)
 		CONN_MD_WARN_FUNC("conn_md_dmp_init failed\n");
-	} else {
+	else
 		CONN_MD_INFO_FUNC("conn_md_dmp_init succeed\n");
-	}
 	/*init proc interface */
 	conn_md_dbg_init();
 
@@ -486,7 +461,7 @@ static int conn_md_init(void)
 	/*wakeup conn_md_thread */
 	wake_up_process(g_conn_md.p_task);
 
- conn_md_err:
+conn_md_err:
 
 	CONN_MD_TRC_FUNC();
 	return i_ret;
@@ -549,10 +524,7 @@ static void conn_md_exit(void)
 		conn_md_dmp_deinit(p_conn_md->p_msg_dmp_sys);
 
 	CONN_MD_TRC_FUNC();
-
-	return;
 }
-
 
 /*---------------------------------------------------------------------------*/
 

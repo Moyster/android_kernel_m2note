@@ -1,7 +1,6 @@
 #ifndef __CONN_MD_LOG_H_
 #define __CONN_MD_LOG_H_
 
-
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/mutex.h>
@@ -27,8 +26,6 @@
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
 #include <linux/kernel.h>
-
-
 
 #define DBG_LOG_STR_SIZE 512
 
@@ -89,6 +86,5 @@ do { \
 		__conn_md_log_print(DFT_TAG "<%s> <%d>\n", \
 		__func__, __LINE__); \
 } while (0)
-
 
 #endif
