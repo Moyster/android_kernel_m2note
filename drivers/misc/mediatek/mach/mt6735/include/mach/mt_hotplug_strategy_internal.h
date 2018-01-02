@@ -36,7 +36,7 @@ extern "C" {
  * CONFIG - compile time
  */
 #define HPS_TASK_PRIORITY                   (MAX_RT_PRIO - 3)
-#define HPS_TIMER_INTERVAL_MS               (40)
+#define HPS_TIMER_INTERVAL_MS               (100)
 
 #define MAX_CPU_UP_TIMES                    (10)
 #define MAX_CPU_DOWN_TIMES                  (100)
